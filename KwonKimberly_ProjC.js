@@ -112,12 +112,10 @@ function initVertexBuffer(gl) {
   makeClockFace();
   makeBand();
   makeGroundGrid();
-  makeTorus();
   makeTri();
-  makeFatCylinder();
   
   // how many floats total needed to store all shapes?
-	var mySiz = (cylVerts.length + sphVerts.length + cubeVerts.length + clockVerts.length + bandVerts.length + gndVerts.length + torVerts.length + triVerts.length + fylVerts.length);						
+	var mySiz = (cylVerts.length + sphVerts.length + cubeVerts.length + clockVerts.length + bandVerts.length + gndVerts.length + triVerts.length);						
 
 	// How many vertices total?
 	var nn = mySiz / floatsPerVertex;
@@ -154,19 +152,9 @@ function initVertexBuffer(gl) {
     colorShapes[i] = gndVerts[j];
   }
 
-  torStart = i;
-  for(j=0; j< torVerts.length; i++, j++){
-    colorShapes[i] = torVerts[j];
-  }
-
   triStart = i;
   for(j=0; j< triVerts.length; i++, j++){
     colorShapes[i] = triVerts[j];
-  }
-
-  fylStart = i;
-  for(j=0; j< fylVerts.length; i++, j++){
-    colorShapes[i] = fylVerts[j];
   }
 
 
@@ -669,181 +657,6 @@ function makeGroundGrid() {
     }
 }
 
-function makeFatCylinder() {
-//==============================================================================
-// Make a cylinder shape from one TRIANGLE_STRIP drawing primitive, using the
-// 'stepped spiral' design described in notes.
-// Cylinder center at origin, encircles z axis, radius 1, top/bottom at z= +/-1.
-//
-  var ctrColr = new Float32Array([0.2, 0.2, 0.2]);	// dark gray
-  var topColr = new Float32Array([0.7, 0.4, 0.4]);	// light green
-  var botColr = new Float32Array([0.2, 0.2, 0.2]);	// light blue
-  var capVerts = 16;	// # of vertices around the topmost 'cap' of the shape
-  var botRadius = 1.6;		// radius of bottom of cylinder (top always 1.0)
-  
-  // Create a (global) array to hold this cylinder's vertices;
-  fylVerts = new Float32Array(  ((capVerts*6) -2) * floatsPerVertex);
-                    // # of vertices * # of elements needed to store them. 
-
-  // Create circle-shaped top cap of cylinder at z=+1.0, radius 1.0
-  // v counts vertices: j counts array elements (vertices * elements per vertex)
-  for(v=1,j=0; v<2*capVerts; v++,j+=floatsPerVertex) {	
-    // skip the first vertex--not needed.
-    if(v%2==0)
-    {				// put even# vertices at center of cylinder's top cap:
-      fylVerts[j  ] = 0.0; 			// x,y,z,w == 0,0,1,1
-      fylVerts[j+1] = 0.0;	
-      fylVerts[j+2] = 1.0; 
-      fylVerts[j+3] = 1.0;			// r,g,b = topColr[]
-      fylVerts[j+4]=ctrColr[0]; 
-      fylVerts[j+5]=ctrColr[1]; 
-      fylVerts[j+6]=ctrColr[2];
-    }
-    else { 	// put odd# vertices around the top cap's outer edge;
-            // x,y,z,w == cos(theta),sin(theta), 1.0, 1.0
-            // 					theta = 2*PI*((v-1)/2)/capVerts = PI*(v-1)/capVerts
-      fylVerts[j  ] = Math.cos(Math.PI*(v-1)/capVerts);			// x
-      fylVerts[j+1] = Math.sin(Math.PI*(v-1)/capVerts);			// y
-      //	(Why not 2*PI? because 0 < =v < 2*capVerts, so we
-      //	 can simplify cos(2*PI * (v-1)/(2*capVerts))
-      fylVerts[j+2] = 1.0;	// z
-      fylVerts[j+3] = 1.0;	// w.
-      // r,g,b = topColr[]
-      fylVerts[j+4]=topColr[0]; 
-      fylVerts[j+5]=topColr[1]; 
-      fylVerts[j+6]=topColr[2];			
-    }
-  }
-  // Create the cylinder side walls, made of 2*capVerts vertices.
-  // v counts vertices within the wall; j continues to count array elements
-  for(v=0; v< 2*capVerts; v++, j+=floatsPerVertex) {
-    if(v%2==0)	// position all even# vertices along top cap:
-    {		
-        fylVerts[j  ] = Math.cos(Math.PI*(v)/capVerts);		// x
-        fylVerts[j+1] = Math.sin(Math.PI*(v)/capVerts);		// y
-        fylVerts[j+2] = 1.0;	// z
-        fylVerts[j+3] = 1.0;	// w.
-        // r,g,b = topColr[]
-        fylVerts[j+4]=topColr[0]; 
-        fylVerts[j+5]=topColr[1]; 
-        fylVerts[j+6]=topColr[2];			
-    }
-    else		// position all odd# vertices along the bottom cap:
-    {
-        fylVerts[j  ] = botRadius * Math.cos(Math.PI*(v-1)/capVerts);		// x
-        fylVerts[j+1] = botRadius * Math.sin(Math.PI*(v-1)/capVerts);		// y
-        fylVerts[j+2] =-1.0;	// z
-        fylVerts[j+3] = 1.0;	// w.
-        // r,g,b = topColr[]
-        fylVerts[j+4]=botColr[0]; 
-        fylVerts[j+5]=botColr[1]; 
-        fylVerts[j+6]=botColr[2];			
-    }
-  }
-  // Create the cylinder bottom cap, made of 2*capVerts -1 vertices.
-  // v counts the vertices in the cap; j continues to count array elements
-  for(v=0; v < (2*capVerts -1); v++, j+= floatsPerVertex) {
-    if(v%2==0) {	// position even #'d vertices around bot cap's outer edge
-      fylVerts[j  ] = botRadius * Math.cos(Math.PI*(v)/capVerts);		// x
-      fylVerts[j+1] = botRadius * Math.sin(Math.PI*(v)/capVerts);		// y
-      fylVerts[j+2] =-1.0;	// z
-      fylVerts[j+3] = 1.0;	// w.
-      // r,g,b = topColr[]
-      fylVerts[j+4]=botColr[0]; 
-      fylVerts[j+5]=botColr[1]; 
-      fylVerts[j+6]=botColr[2];		
-    }
-    else {				// position odd#'d vertices at center of the bottom cap:
-      fylVerts[j  ] = 0.0; 			// x,y,z,w == 0,0,-1,1
-      fylVerts[j+1] = 0.0;	
-      fylVerts[j+2] =-1.0; 
-      fylVerts[j+3] = 1.0;			// r,g,b = botColr[]
-      fylVerts[j+4]=botColr[0]; 
-      fylVerts[j+5]=botColr[1]; 
-      fylVerts[j+6]=botColr[2];
-    }
-  }
-}
-
-function makeTorus() {
-  var topColr = new Float32Array([0.3, 0.4, 0.4]);	// light green
- var botColr = new Float32Array([0.1, 0.2, 0.2]);	// light blue
-  var rbend = 1.0;										// Radius of circle formed by torus' bent bar
-  var rbar = 0.5;											// radius of the bar we bent to form torus
-  var barSlices = 23;									// # of bar-segments in the torus: >=3 req'd;
-                                      // more segments for more-circular torus
-  var barSides = 13;										// # of sides of the bar (and thus the 
-                                      // number of vertices in its cross-section)
-                                      // >=3 req'd;
-                                      // more sides for more-circular cross-section
-  // for nice-looking torus with approx square facets, 
-  //			--choose odd or prime#  for barSides, and
-  //			--choose pdd or prime# for barSlices of approx. barSides *(rbend/rbar)
-  // EXAMPLE: rbend = 1, rbar = 0.5, barSlices =23, barSides = 11.
-  
-    // Create a (global) array to hold this torus's vertices:
-    torVerts = new Float32Array(floatsPerVertex*(2*barSides*barSlices +2));
-  //	Each slice requires 2*barSides vertices, but 1st slice will skip its first 
-  // triangle and last slice will skip its last triangle. To 'close' the torus,
-  // repeat the first 2 vertices at the end of the triangle-strip.  Assume 7
-  
-  var phi=0, theta=0;										// begin torus at angles 0,0
-  var thetaStep = 2*Math.PI/barSlices;	// theta angle between each bar segment
-  var phiHalfStep = Math.PI/barSides;		// half-phi angle between each side of bar
-                                        // (WHY HALF? 2 vertices per step in phi)
-    // s counts slices of the bar; v counts vertices within one slice; j counts
-    // array elements (Float32) (vertices*#attribs/vertex) put in torVerts array.
-    for(s=0,j=0; s<barSlices; s++) {		// for each 'slice' or 'ring' of the torus:
-      for(v=0; v< 2*barSides; v++, j+=7) {		// for each vertex in this slice:
-        if(v%2==0)	{	// even #'d vertices at bottom of slice,
-          torVerts[j  ] = (rbend + rbar*Math.cos((v)*phiHalfStep)) * 
-                                                Math.cos((s)*thetaStep);
-                  //	x = (rbend + rbar*cos(phi)) * cos(theta)
-          torVerts[j+1] = (rbend + rbar*Math.cos((v)*phiHalfStep)) *
-                                                Math.sin((s)*thetaStep);
-                  //  y = (rbend + rbar*cos(phi)) * sin(theta) 
-          torVerts[j+2] = -rbar*Math.sin((v)*phiHalfStep);
-                  //  z = -rbar  *   sin(phi)
-          torVerts[j+3] = 1.0;		// w
-        }
-        else {				// odd #'d vertices at top of slice (s+1);
-                      // at same phi used at bottom of slice (v-1)
-          torVerts[j  ] = (rbend + rbar*Math.cos((v-1)*phiHalfStep)) * 
-                                                Math.cos((s+1)*thetaStep);
-                  //	x = (rbend + rbar*cos(phi)) * cos(theta)
-          torVerts[j+1] = (rbend + rbar*Math.cos((v-1)*phiHalfStep)) *
-                                                Math.sin((s+1)*thetaStep);
-                  //  y = (rbend + rbar*cos(phi)) * sin(theta) 
-          torVerts[j+2] = -rbar*Math.sin((v-1)*phiHalfStep);
-                  //  z = -rbar  *   sin(phi)
-          torVerts[j+3] = 1.0;		// w
-        }
-        torVerts[j+4] = 0.3;		// random color 0.0 <= R < 1.0
-        torVerts[j+5] = randBlue();		// random color 0.0 <= G < 1.0
-        torVerts[j+6] = randBlue();		// random color 0.0 <= B < 1.0
-      }
-    }
-    // Repeat the 1st 2 vertices of the triangle strip to complete the torus:
-        torVerts[j  ] = rbend + rbar;	// copy vertex zero;
-                //	x = (rbend + rbar*cos(phi==0)) * cos(theta==0)
-        torVerts[j+1] = 0.0;
-                //  y = (rbend + rbar*cos(phi==0)) * sin(theta==0) 
-        torVerts[j+2] = 0.0;
-                //  z = -rbar  *   sin(phi==0)
-        torVerts[j+3] = 1.0;		// w
-        torVerts[j+4] = 0.3;		// random color 0.0 <= R < 1.0
-        torVerts[j+5] = randBlue();		// random color 0.0 <= G < 1.0
-        torVerts[j+6] = randBlue();		// random color 0.0 <= B < 1.0
-        j+=7; // go to next vertex:
-        torVerts[j  ] = (rbend + rbar) * Math.cos(thetaStep);
-        torVerts[j+1] = (rbend + rbar) * Math.sin(thetaStep);
-        torVerts[j+2] = 0.0;
-        torVerts[j+3] = 1.0;		// w
-        torVerts[j+4] = 0.3;		// random color 0.0 <= R < 1.0
-        torVerts[j+5] = randBlue();		// random color 0.0 <= G < 1.0
-        torVerts[j+6] = randBlue();		// random color 0.0 <= B < 1.0
-  }
-
 function makeTri(){
   var c30 = Math.sqrt(0.75);					// == cos(30deg) == sqrt(3) / 2
 	var sq2	= Math.sqrt(2.0);		
@@ -1099,34 +912,6 @@ function drawWatch(gl) {
 function drawSmallShapes(gl){
   pushMatrix(mvpMatrix);
 
-  mvpMatrix.translate(0, .5, .12);
-  mvpMatrix.scale(0.05, 0.05, 0.05);
-  gl.uniformMatrix4fv(u_MvpMatrix, false, mvpMatrix.elements);
-
-  gl.drawArrays(gl.TRIANGLE_STRIP, 				// use this drawing primitive, and
-    torStart/floatsPerVertex,	// start at this vertex number, and
-    torVerts.length/floatsPerVertex);	// draw this many vertices.
-
-  mvpMatrix.translate(0, 0, -1);
-  mvpMatrix.scale(1.2, 1.2, 1.2);
-  gl.uniformMatrix4fv(u_MvpMatrix, false, mvpMatrix.elements);
-
-  gl.drawArrays(gl.TRIANGLE_STRIP, 				// use this drawing primitive, and
-    torStart/floatsPerVertex,	// start at this vertex number, and
-    torVerts.length/floatsPerVertex);	// draw this many vertices.
-  
-  mvpMatrix.translate(0, 0, -.8);
-  mvpMatrix.scale(0.75, 0.75, 0.75);
-  gl.uniformMatrix4fv(u_MvpMatrix, false, mvpMatrix.elements);
-
-  gl.drawArrays(gl.TRIANGLE_STRIP, 				// use this drawing primitive, and
-    torStart/floatsPerVertex,	// start at this vertex number, and
-    torVerts.length/floatsPerVertex);	// draw this many vertices.
-
-
-  mvpMatrix = popMatrix();
-  pushMatrix(mvpMatrix);
-
   mvpMatrix.translate(0.8, 0.125, 0.0);
   mvpMatrix.scale(0.2, 0.2, 0.2);
   //mvpMatrix.rotate(20.0, 1, 0, 0);
@@ -1147,17 +932,6 @@ function drawSmallShapes(gl){
                 cubeStart/floatsPerVertex,
                 cubeVerts.length/floatsPerVertex);
   mvpMatrix = popMatrix();
-  pushMatrix(mvpMatrix);
-
-  mvpMatrix.translate(-1, 0.7, 0.1);
-  mvpMatrix.scale(0.1, 0.1, 0.1);
-  gl.uniformMatrix4fv(u_MvpMatrix, false, mvpMatrix.elements);
-  
-  gl.drawArrays(gl.TRIANGLE_STRIP, 
-                fylStart/floatsPerVertex,
-                fylVerts.length/floatsPerVertex);
-
-  mvpMatrix = popMatrix();
 }
 
 function drawGrid(gl){
@@ -1176,7 +950,6 @@ function drawGrid(gl){
   
   mvpMatrix = popMatrix();
 }
-
 
 var zNear = 1;
 var zFar = 8;
