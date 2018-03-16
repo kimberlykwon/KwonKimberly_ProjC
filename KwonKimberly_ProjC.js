@@ -1,6 +1,7 @@
 // Vertex shader program----------------------------------
 var VSHADER_SOURCE = 
   'uniform mat4 u_MvpMatrix;\n' +
+  'uniform mat4 u_ModelMatrix;\n' +
   'attribute vec4 a_Position;\n' +
   'attribute vec4 a_Color;\n' +
   'varying vec4 v_Color;\n' +
@@ -20,6 +21,7 @@ var FSHADER_SOURCE =
 
 // Global Variables
 var ANGLE_STEP = 45.0; //rotation
+var SPHERE_ANGLE_STEP = 45.0;
 var NUNCHUCK_ANGLE_STEP = 45.0;
 
 // Global vars for mouse click-and-drag for rotation.
@@ -82,12 +84,14 @@ function main() {
   // Create, init current rotation angle value in JavaScript
   
   currentAngle = 0.0;
+  sphereAngle = 0.0;
   nunchuckAngle = 0.0;
   wholeNunchuckAngle = 0.0;
 
   //Start drawing: create 'tick' variable whose value is this function:
   var tick = function() {
     currentAngle = animate(currentAngle);  // Update the rotation angle
+    sphereAngle = animateSphere(sphereAngle);
     wholeNunchuckAngle = animateNunchuck(wholeNunchuckAngle);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     drawResize();
@@ -106,56 +110,58 @@ function initVertexBuffer(gl) {
 // shapes.
  
  	// Make each 3D shape in its own array of vertices:
-  makeCylinder();					// create, fill the cylVerts array
-  makeSphere();						// create, fill the sphVerts array
-  makeCube();
-  makeClockFace();
-  makeBand();
+ // makeCylinder();					// create, fill the cylVerts array
+  makeBigSphere();						// create, fill the sphVerts array
+  //makeCube();
+  //makeClockFace();
+  //makeBand();
   makeGroundGrid();
-  makeTri();
+  //makeTri();
   
   // how many floats total needed to store all shapes?
-	var mySiz = (cylVerts.length + sphVerts.length + cubeVerts.length + clockVerts.length + bandVerts.length + gndVerts.length + triVerts.length);						
+	//var mySiz = (cylVerts.length + sphVerts.length + cubeVerts.length + clockVerts.length + bandVerts.length + gndVerts.length + triVerts.length);						
+	var mySiz = (bsphVerts.length + gndVerts.length);						
+
 
 	// How many vertices total?
 	var nn = mySiz / floatsPerVertex;
 	// Copy all shapes into one big Float32 array:
   var colorShapes = new Float32Array(mySiz);
 	// Copy them:  remember where to start for each shape:
-	cylStart = 0;							// we stored the cylinder first.
-  for(i=0,j=0; j< cylVerts.length; i++,j++) {
-  	colorShapes[i] = cylVerts[j];
-  }
+	// cylStart = 0;							// we stored the cylinder first.
+  // for(i=0,j=0; j< cylVerts.length; i++,j++) {
+  // 	colorShapes[i] = cylVerts[j];
+  // }
 
-  sphStart = i;						// next, we'll store the sphere;
-	for(j=0; j< sphVerts.length; i++, j++) {// don't initialize i -- reuse it!
-		colorShapes[i] = sphVerts[j];
+  bsphStart = 0;						// next, we'll store the sphere;
+	for(i=0,j=0; j< bsphVerts.length; i++, j++) {// don't initialize i -- reuse it!
+		colorShapes[i] = bsphVerts[j];
   }
     
-  cubeStart = i;
-  for(j=0; j< cubeVerts.length; i++, j++){
-    colorShapes[i] = cubeVerts[j];
-  }
+  // cubeStart = i;
+  // for(j=0; j< cubeVerts.length; i++, j++){
+  //   colorShapes[i] = cubeVerts[j];
+  // }
 
-  clockStart = i;
-  for(j=0; j< clockVerts.length; i++, j++){
-    colorShapes[i] = clockVerts[j];
-  }
+  // clockStart = i;
+  // for(j=0; j< clockVerts.length; i++, j++){
+  //   colorShapes[i] = clockVerts[j];
+  // }
 
-  bandStart = i;
-  for(j=0; j< bandVerts.length; i++, j++){
-    colorShapes[i] = bandVerts[j];
-  }
+  // bandStart = i;
+  // for(j=0; j< bandVerts.length; i++, j++){
+  //   colorShapes[i] = bandVerts[j];
+  // }
 
   gndStart = i;
   for(j=0; j< gndVerts.length; i++, j++){
     colorShapes[i] = gndVerts[j];
   }
 
-  triStart = i;
-  for(j=0; j< triVerts.length; i++, j++){
-    colorShapes[i] = triVerts[j];
-  }
+  // triStart = i;
+  // for(j=0; j< triVerts.length; i++, j++){
+  //   colorShapes[i] = triVerts[j];
+  // }
 
 
   // Create a buffer object on the graphics hardware:
@@ -600,6 +606,91 @@ function makeSphere() {
   }
 }
 
+function makeBigSphere() {
+  //==============================================================================
+  // Make a sphere from one OpenGL TRIANGLE_STRIP primitive.   Make ring-like 
+  // equal-lattitude 'slices' of the sphere (bounded by planes of constant z), 
+  // and connect them as a 'stepped spiral' design (see makeCylinder) to build the
+  // sphere from one triangle strip.
+    var slices = 13;		// # of slices of the sphere along the z axis. >=3 req'd
+                        // (choose odd # or prime# to avoid accidental symmetry)
+    var sliceVerts	= 27;	// # of vertices around the top edge of the slice
+                        // (same number of vertices on bottom of slice, too)
+    var topColr = new Float32Array([0.3, 0.3, 0.3]);	// North Pole: light gray
+    //var equColr = new Float32Array([0.0, 0.0, 0.0]);	// Equator:    bright green
+    var botColr = new Float32Array([0.3, 0.3, 0.3]);	// South Pole: brightest gray.
+    var sliceAngle = Math.PI/slices;	// lattitude angle spanned by one slice.
+  
+    // Create a (global) array to hold this sphere's vertices:
+    bsphVerts = new Float32Array(  ((slices * 2* sliceVerts) -2) * floatsPerVertex);
+                      // # of vertices * # of elements needed to store them. 
+                      // each slice requires 2*sliceVerts vertices except 1st and
+                      // last ones, which require only 2*sliceVerts-1.
+                      
+    // Create dome-shaped top slice of sphere at z=+1
+    // s counts slices; v counts vertices; 
+    // j counts array elements (vertices * elements per vertex)
+    var cos0 = 0.0;					// sines,cosines of slice's top, bottom edge.
+    var sin0 = 0.0;
+    var cos1 = 0.0;
+    var sin1 = 0.0;	
+    var j = 0;							// initialize our array index
+    var isLast = 0;
+    var isFirst = 1;
+    for(s=0; s<slices; s++) {	// for each slice of the sphere,
+      // find sines & cosines for top and bottom of this slice
+      if(s==0) {
+        isFirst = 1;	// skip 1st vertex of 1st slice.
+        cos0 = 1.0; 	// initialize: start at north pole.
+        sin0 = 0.0;
+      }
+      else {					// otherwise, new top edge == old bottom edge
+        isFirst = 0;	
+        cos0 = cos1;
+        sin0 = sin1;
+      }								// & compute sine,cosine for new bottom edge.
+      cos1 = Math.cos((s+1)*sliceAngle);
+      sin1 = Math.sin((s+1)*sliceAngle);
+      // go around the entire slice, generating TRIANGLE_STRIP verts
+      // (Note we don't initialize j; grows with each new attrib,vertex, and slice)
+      if(s==slices-1) isLast=1;	// skip last vertex of last slice.
+      for(v=isFirst; v< 2*sliceVerts-isLast; v++, j+=floatsPerVertex) {	
+      // for(v=isFirst; v< sliceVerts-isLast; v++, j+=floatsPerVertex) {	
+        if(v%2==0)
+        {				// put even# vertices at the the slice's top edge  
+          bsphVerts[j  ] = sin0 * Math.cos(Math.PI*(v)/sliceVerts); 	
+          bsphVerts[j+1] = sin0 * Math.sin(Math.PI*(v)/sliceVerts);	
+          bsphVerts[j+2] = cos0;		
+          bsphVerts[j+3] = 1.0;			
+        }
+        else { 	// put odd# vertices around the slice's lower edge;
+                // x,y,z,w == cos(theta),sin(theta), 1.0, 1.0
+                // 					theta = 2*PI*((v-1)/2)/capVerts = PI*(v-1)/capVerts
+          bsphVerts[j  ] = sin1 * Math.cos(Math.PI*(v-1)/sliceVerts);		// x
+          bsphVerts[j+1] = sin1 * Math.sin(Math.PI*(v-1)/sliceVerts);		// y
+          bsphVerts[j+2] = cos1;																				// z
+          bsphVerts[j+3] = 1.0;																				// w.		
+        }
+        if(s==0) {	// finally, set some interesting colors for vertices:
+          bsphVerts[j+4]=topColr[0]; 
+          bsphVerts[j+5]=topColr[1]; 
+          bsphVerts[j+6]=topColr[2];	
+          }
+        else if(s==slices-1) {
+          bsphVerts[j+4]=botColr[0]; 
+          bsphVerts[j+5]=botColr[1]; 
+          bsphVerts[j+6]=botColr[2];	
+        }
+        else {
+            //var num = randNum();
+            bsphVerts[j+4]=0.3;
+            bsphVerts[j+5]=0.3;
+            bsphVerts[j+6]=0.3;			
+        }
+      }
+    }
+  }
+
 function makeGroundGrid() {
   //==============================================================================
   // Create a list of vertices that create a large grid of lines in the x,y plane
@@ -910,34 +1001,45 @@ function drawWatch(gl) {
 
 
 function drawSmallShapes(gl){
+  // pushMatrix(mvpMatrix);
+
+  // mvpMatrix.translate(0.8, 0.125, 0.0);
+  // mvpMatrix.scale(0.2, 0.2, 0.2);
+  // //mvpMatrix.rotate(20.0, 1, 0, 0);
+  // gl.uniformMatrix4fv(u_MvpMatrix, false, mvpMatrix.elements);
+  
+  // gl.drawArrays(gl.TRIANGLES, 
+  //               triStart/floatsPerVertex,
+  //               triVerts.length/floatsPerVertex);
+
+  // mvpMatrix = popMatrix();
+  // pushMatrix(mvpMatrix);
+
+  // mvpMatrix.translate(-1, 0.2, 0.1);
+  // mvpMatrix.scale(0.1, 0.1, 0.1);
+  // gl.uniformMatrix4fv(u_MvpMatrix, false, mvpMatrix.elements);
+  
+  // gl.drawArrays(gl.TRIANGLES, 
+  //               cubeStart/floatsPerVertex,
+  //               cubeVerts.length/floatsPerVertex);
+  // mvpMatrix = popMatrix();
   pushMatrix(mvpMatrix);
 
-  mvpMatrix.translate(0.8, 0.125, 0.0);
-  mvpMatrix.scale(0.2, 0.2, 0.2);
-  //mvpMatrix.rotate(20.0, 1, 0, 0);
+  mvpMatrix.translate(2, 0.5, 1);
+  mvpMatrix.scale(0.5, 0.5, 0.5);
+  mvpMatrix.rotate(sphereAngle*0.2, 0, 0, 1);  // Spin on XY diagonal axis
   gl.uniformMatrix4fv(u_MvpMatrix, false, mvpMatrix.elements);
   
-  gl.drawArrays(gl.TRIANGLES, 
-                triStart/floatsPerVertex,
-                triVerts.length/floatsPerVertex);
-
-  mvpMatrix = popMatrix();
-  pushMatrix(mvpMatrix);
-
-  mvpMatrix.translate(-1, 0.2, 0.1);
-  mvpMatrix.scale(0.1, 0.1, 0.1);
-  gl.uniformMatrix4fv(u_MvpMatrix, false, mvpMatrix.elements);
-  
-  gl.drawArrays(gl.TRIANGLES, 
-                cubeStart/floatsPerVertex,
-                cubeVerts.length/floatsPerVertex);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 
+                bsphStart/floatsPerVertex,
+                bsphVerts.length/floatsPerVertex);
   mvpMatrix = popMatrix();
 }
 
 function drawGrid(gl){
   pushMatrix(mvpMatrix);
   // Rotate to make a new set of 'world' drawing axes: 
-  mvpMatrix.translate(0.0, 0.0, 0.0);	
+  //mvpMatrix.translate(0.0, 0.0, 0.0);	
   //mvpMatrix.rotate(-90.0, 1,0,0);	// new one has "+z points upwards",
 
   mvpMatrix.scale(0.1, 0.1, 0.1);		// shrink the drawing axes 
@@ -990,8 +1092,8 @@ function draw(gl){
 }
 
 function drawAll(gl){
-  drawNunchucks(gl);
-  drawWatch(gl);
+  //drawNunchucks(gl);
+  //drawWatch(gl);
   drawSmallShapes(gl);
   drawGrid(gl);
 }
@@ -1143,6 +1245,16 @@ function animateNunchuck(angle) {
   d_last = now;
 
   var newAngle = angle + (NUNCHUCK_ANGLE_STEP * elapsed) / 1000.0;
+  return newAngle %= 360;
+}
+
+var s_last = Date.now();
+function animateSphere(angle) {
+  var now = Date.now();
+  var elapsed = now - s_last;
+  s_last = now;
+
+  var newAngle = angle + (SPHERE_ANGLE_STEP * elapsed) / 1000.0;
   return newAngle %= 360;
 }
 
