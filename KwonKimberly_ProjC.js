@@ -5,8 +5,10 @@ var VSHADER_SOURCE =
   'attribute vec4 a_Position;\n' +
   'attribute vec4 a_Color;\n' +
   'varying vec4 v_Color;\n' +
+  'varying vec4 v_Position;\n' +
   'void main() {\n' +
   '  gl_Position = u_MvpMatrix * a_Position;\n' +
+  '  v_Position = u_ModelMatrix * a_Position;\n' +
   '  gl_PointSize = 10.0;\n' +
   '  v_Color = a_Color;\n' +
   '}\n';
@@ -22,17 +24,9 @@ var FSHADER_SOURCE =
 // Global Variables
 var ANGLE_STEP = 45.0; //rotation
 var SPHERE_ANGLE_STEP = 45.0;
-var NUNCHUCK_ANGLE_STEP = 45.0;
-
-// Global vars for mouse click-and-drag for rotation.
-var isDrag=false;		// mouse-drag: true when user holds down mouse button
-var xMclik=0.0;			// last mouse button-down position (in CVV coords)
-var yMclik=0.0;   
-var xMdragTot=0.0;	// total (accumulated) mouse-drag amounts (in CVV coords).
-var yMdragTot=0.0;  
+var NUNCHUCK_ANGLE_STEP = 45.0; 
 
 var floatsPerVertex = 7;	
-
 
 function main() {
 //==============================================================================
@@ -70,13 +64,19 @@ function main() {
 	
   // Get handle to graphics system's storage location of u_MvpMatrix
   u_MvpMatrix = gl.getUniformLocation(gl.program, 'u_MvpMatrix');
-  if (!u_MvpMatrix) { 
-    console.log('Failed to get the storage location of u_MvpMatrix');
+  u_ModelMatrix = gl.getUniformLocation(gl.program, 'u_ModelMatrix');
+  //u_NormalMatrix = gl.getUniformLocation(gl.program, 'u_MvpMatrix');
+
+
+  if (!u_MvpMatrix || !u_ModelMatrix) { 
+    console.log('Failed to get the storage location of matrix');
     return;
   }
 
   // Create a local version of our model matrix in JavaScript 
   mvpMatrix = new Matrix4();
+  modelMatrix = new Matrix4();
+
   mvpMatrix.setPerspective(30, canvas.width/canvas.height, 1, 100);
 
   document.onkeydown= function(ev){keydown(ev, gl); };
@@ -113,8 +113,6 @@ function initVertexBuffer(gl) {
  // makeCylinder();					// create, fill the cylVerts array
   makeBigSphere();						// create, fill the sphVerts array
   //makeCube();
-  //makeClockFace();
-  //makeBand();
   makeGroundGrid();
   //makeTri();
   
@@ -143,15 +141,6 @@ function initVertexBuffer(gl) {
   //   colorShapes[i] = cubeVerts[j];
   // }
 
-  // clockStart = i;
-  // for(j=0; j< clockVerts.length; i++, j++){
-  //   colorShapes[i] = clockVerts[j];
-  // }
-
-  // bandStart = i;
-  // for(j=0; j< bandVerts.length; i++, j++){
-  //   colorShapes[i] = bandVerts[j];
-  // }
 
   gndStart = i;
   for(j=0; j< gndVerts.length; i++, j++){
@@ -162,7 +151,6 @@ function initVertexBuffer(gl) {
   // for(j=0; j< triVerts.length; i++, j++){
   //   colorShapes[i] = triVerts[j];
   // }
-
 
   // Create a buffer object on the graphics hardware:
   var shapeBufferHandle = gl.createBuffer();  
@@ -284,74 +272,6 @@ function makeCube() {
   ]);
 }
 
-
-function makeBand() {					 
-  bandVerts = new Float32Array([
-		// +x face: BROWN
-     0.5, -1.0, -.1, 1.0,		0.8, 0.8, 0.8,	// Node 3
-     0.5,  1.0, -.1, 1.0,		0.8, 0.8, 0.8,	// Node 2
-     0.5,  1.0,  .1, 1.0,	  0.8, 0.8, 0.8,  // Node 4
-     
-     0.5,  1.0,  .1, 1.0,	  0.8, 0.8, 0.8,	// Node 4
-     0.5, -1.0,  .1, 1.0,	  0.8, 0.8, 0.8,	// Node 7
-     0.5, -1.0, -.1, 1.0,	  0.8, 0.8, 0.8,	// Node 3
-
-		// +y face: BROWN
-    -0.5,  1.0, -.1, 1.0,	  0.8, 0.8, 0.8,	// Node 1
-    -0.5,  1.0,  .1, 1.0,	  0.8, 0.8, 0.8,	// Node 5
-    0.5,  1.0,  .1, 1.0,	  0.8, 0.8, 0.8,	// Node 4
-
-    0.5,  1.0,  .1, 1.0,	  0.8, 0.8, 0.8,	// Node 4
-    0.5,  1.0, -.1, 1.0,	  0.8, 0.8, 0.8,	// Node 2 
-    -0.5,  1.0, -.1, 1.0,	  0.8, 0.8, 0.8,	// Node 1
-
-		// +z face: maroon
-    -0.5,  1.0,  .1, 1.0,	  0.13, 0.0, 0.0,	// Node 5
-    -0.5, -1.0,  .1, 1.0,	  0.13, 0.0, 0.0,	// Node 6
-    0.5, -1.0,  .1, 1.0,	  0.13, 0.0, 0.0,	// Node 7
-
-    0.5, -1.0,  .1, 1.0,	  0.13, 0.0, 0.0,	// Node 7
-    0.5,  1.0,  .1, 1.0,	  0.13, 0.0, 0.0,	// Node 4
-    -0.5,  1.0,  .1, 1.0,	  0.13, 0.0, 0.0,	// Node 5
-
-		// -x face: BROWN
-    -0.5, -1.0,  0.1, 1.0,	0.8, 0.8, 0.8,	// Node 6	
-    -0.5,  1.0,  .1, 1.0,	  0.8, 0.8, 0.8,	// Node 5 
-    -0.5,  1.0, -.1, 1.0,	  0.8, 0.8, 0.8,	// Node 1
-    
-    -0.5,  1.0, -.1, 1.0,	  0.8, 0.8, 0.8,	// Node 1
-    -0.5, -1.0, -.1, 1.0,	  0.8, 0.8, 0.8,	// Node 0  
-    -0.5, -1.0,  .1, 1.0,	  0.8, 0.8, 0.8,	// Node 6  
-    
-		// -y face: BROWN
-    0.5, -1.0, -.1, 1.0,	  0.8, 0.8, 0.8,	// Node 3
-    0.5, -1.0,  .1, 1.0,	  0.8, 0.8, 0.8,	// Node 7
-    -0.5, -1.0,  .1, 1.0,	  0.8, 0.8, 0.8,	// Node 6
-
-    -0.5, -1.0,  .1, 1.0,	  0.8, 0.8, 0.8,	// Node 6
-    -0.5, -1.0, -.1, 1.0,	  0.8, 0.8, 0.8,	// Node 0
-    0.5, -1.0, -.1, 1.0,	  0.8, 0.8, 0.8,	// Node 3
-
-     // -z face: 
-     0.5,  1.0, -.1, 1.0,	  1.0, 1.0, 0.0,	// Node 2
-     0.5, -1.0, -.1, 1.0,	  1.0, 1.0, 0.0,	// Node 3
-    -0.5, -1.0, -.1, 1.0,	  1.0, 1.0, 0.0,	// Node 0		
-
-    -0.5, -1.0, -.1, 1.0,	  1.0, 1.0, 0.1,	// Node 0
-    -0.5,  1.0, -.1, 1.0,	  1.0, 1.0, 0.1,	// Node 1
-    0.5,  1.0, -.1, 1.0,	  1.0, 1.0, 0.1,	// Node 2
-  ]);
-  // Make last face random brown
-  for (k=210; k<252; k+=7){
-    var num = randNum();
-    bandVerts[k+4] = num;
-    bandVerts[k+5] = num-0.2;
-    bandVerts[k+6] = num-0.4;
-  }
-}
-
-
-
 function makeCylinder() {
   var ctrColr = new Float32Array([0.2, 0.2, 0.2]);	
   var topColr = new Float32Array([0.6, 0.2, 0.2]);	
@@ -436,90 +356,6 @@ function makeCylinder() {
 	}
 }
 
-function makeClockFace() {
- var ctrColr = new Float32Array([0.2, 0.2, 0.2]);	// dark gray
- var topColr = new Float32Array([0.4, 0.4, 0.4]);	// light green
- var botColr = new Float32Array([1.0, 1.0, 1.0]);	// light blue
- var capVerts = 16;	// # of vertices around the topmost 'cap' of the shape
- var botRadius = 1.6;		// radius of bottom of cylinder (top always 1.0)
- 
- // Create a (global) array to hold this cylinder's vertices;
- clockVerts = new Float32Array(  ((capVerts*6) -2) * floatsPerVertex);
-
-	// Create circle-shaped top cap of cylinder at z=+1.0, radius 1.0
-	// v counts vertices: j counts array elements (vertices * elements per vertex)
-	for(v=1,j=0; v<2*capVerts; v++,j+=floatsPerVertex) {	
-		// skip the first vertex--not needed.
-		if(v%2==0)
-		{				// put even# vertices at center of cylinder's top cap:
-			clockVerts[j  ] = 0.0; 			// x,y,z,w == 0,0,1,1
-			clockVerts[j+1] = 0.0;	
-			clockVerts[j+2] = 0.2; 
-			clockVerts[j+3] = 1.0;			// r,g,b = topColr[]
-			clockVerts[j+4]=ctrColr[0]; 
-			clockVerts[j+5]=ctrColr[1]; 
-			clockVerts[j+6]=ctrColr[2];
-		}
-		else { 	// put odd# vertices around the top cap's outer edge;
-						// x,y,z,w == cos(theta),sin(theta), 1.0, 1.0
-						// 					theta = 2*PI*((v-1)/2)/capVerts = PI*(v-1)/capVerts
-			clockVerts[j  ] = Math.cos(Math.PI*(v-1)/capVerts);			// x
-			clockVerts[j+1] = Math.sin(Math.PI*(v-1)/capVerts);			// y
-			clockVerts[j+2] = 0.2;	// z
-      clockVerts[j+3] = 1.0;	// w.
-      clockVerts[j+4]=topColr[0]; 
-			clockVerts[j+5]=topColr[1]; 
-			clockVerts[j+6]=topColr[2];			
-		}
-	}
-	// Create the cylinder side walls, made of 2*capVerts vertices.
-	// v counts vertices within the wall; j continues to count array elements
-	for(v=0; v< 2*capVerts; v++, j+=floatsPerVertex) {
-		if(v%2==0)	// position all even# vertices along top cap:
-		{		
-				clockVerts[j  ] = Math.cos(Math.PI*(v)/capVerts);		// x
-				clockVerts[j+1] = Math.sin(Math.PI*(v)/capVerts);		// y
-				clockVerts[j+2] = 0.2;	// z
-				clockVerts[j+3] = 1.0;	// w.
-				clockVerts[j+4]=topColr[0]; 
-				clockVerts[j+5]=topColr[1]; 
-				clockVerts[j+6]=topColr[2];			
-		}
-		else		// position all odd# vertices along the bottom cap:
-		{
-				clockVerts[j  ] = botRadius * Math.cos(Math.PI*(v-1)/capVerts);		// x
-				clockVerts[j+1] = botRadius * Math.sin(Math.PI*(v-1)/capVerts);		// y
-				clockVerts[j+2] =-0.2;	// z
-				clockVerts[j+3] = 1.0;	// w.
-				// r,g,b = topColr[]
-				clockVerts[j+4]=botColr[0]; 
-				clockVerts[j+5]=botColr[1]; 
-				clockVerts[j+6]=botColr[2];			
-		}
-	}
-	// Create the cylinder bottom cap, made of 2*capVerts -1 vertices.
-	// v counts the vertices in the cap; j continues to count array elements
-	for(v=0; v < (2*capVerts -1); v++, j+= floatsPerVertex) {
-		if(v%2==0) {	// position even #'d vertices around bot cap's outer edge
-			clockVerts[j  ] = botRadius * Math.cos(Math.PI*(v)/capVerts);		// x
-			clockVerts[j+1] = botRadius * Math.sin(Math.PI*(v)/capVerts);		// y
-			clockVerts[j+2] =-0.2;	// z
-			clockVerts[j+3] = 1.0;	// w.
-			clockVerts[j+4]=botColr[0]; 
-			clockVerts[j+5]=botColr[1]; 
-			clockVerts[j+6]=botColr[2];		
-		}
-		else {				// position odd#'d vertices at center of the bottom cap:
-			clockVerts[j  ] = 0.0; 			// x,y,z,w == 0,0,-1,1
-			clockVerts[j+1] = 0.0;	
-			clockVerts[j+2] =-0.2; 
-			clockVerts[j+3] = 1.0;			// r,g,b = botColr[]
-			clockVerts[j+4]=botColr[0]; 
-			clockVerts[j+5]=botColr[1]; 
-			clockVerts[j+6]=botColr[2];
-		}
-	}
-}
 
 function makeSphere() {
 //==============================================================================
@@ -1071,6 +907,8 @@ function draw(gl){
               gl.drawingBufferHeight);				// this camera: width/height.
   
   mvpMatrix.setIdentity();    // DEFINE 'world-space' coords.
+  modelMatrix.setIdentity();
+
           
   // For this viewport, set camera's eye point and the viewing volume:
   mvpMatrix.setPerspective(35.0, 				// fovy: y-axis field-of-view in degrees 	
@@ -1263,88 +1101,9 @@ function drawResize() {
   var nuGL = getWebGLContext(nuCanvas);							// and context:
 
   // Make canvas fill our browser window:
-  nuCanvas.width = innerWidth;
-  nuCanvas.height = innerHeight;
+  // todo: fix
+  nuCanvas.width = innerWidth-5;
+  nuCanvas.height = innerHeight - 150;
 
   draw(nuGL);				
 }
-
-//==================HTML Button Callbacks
-function runStop() {
-  if(ANGLE_STEP*ANGLE_STEP > 1) {
-    myTmp = ANGLE_STEP;
-    ANGLE_STEP = 0;
-  }
-  else {
-  	ANGLE_STEP = myTmp;
-  }
-
-  if(NUNCHUCK_ANGLE_STEP*NUNCHUCK_ANGLE_STEP > 1) {
-    myTmp = NUNCHUCK_ANGLE_STEP;
-    NUNCHUCK_ANGLE_STEP = 0;
-  }
-  else {
-  	NUNCHUCK_ANGLE_STEP = myTmp;
-  }
-}
-
-function myMouseDown(ev, gl, canvas) {  
-    runStop();
-  // Create right-handed 'pixel' coords with origin at WebGL canvas LOWER left;
-    var rect = ev.target.getBoundingClientRect();	// get canvas corners in pixels
-    var xp = ev.clientX - rect.left;									// x==0 at canvas left edge
-    var yp = canvas.height - (ev.clientY - rect.top);	// y==0 at canvas bottom edge
-    
-    // Convert to Canonical View Volume (CVV) coordinates too:
-    var x = (xp - canvas.width/2)  / 		// move origin to center of canvas and
-                 (canvas.width/2);			// normalize canvas to -1 <= x < +1,
-    var y = (yp - canvas.height/2) /		//										 -1 <= y < +1.
-                 (canvas.height/2);
-    
-    isDrag = true;											// set our mouse-dragging flag
-    xMclik = x;													// record where mouse-dragging began
-    yMclik = y;
-  };
-  
-  
-  function myMouseMove(ev, gl, canvas) {  
-    if(isDrag==false) return;				// IGNORE all mouse-moves except 'dragging'
-  
-    // Create right-handed 'pixel' coords with origin at WebGL canvas LOWER left;
-    var rect = ev.target.getBoundingClientRect();	// get canvas corners in pixels
-    var xp = ev.clientX - rect.left;									// x==0 at canvas left edge
-    var yp = canvas.height - (ev.clientY - rect.top);	// y==0 at canvas bottom edge
-    
-    // Convert to Canonical View Volume (CVV) coordinates too:
-    var x = (xp - canvas.width/2)  / 		// move origin to center of canvas and
-                 (canvas.width/2);			// normalize canvas to -1 <= x < +1,
-    var y = (yp - canvas.height/2) /		//										 -1 <= y < +1.
-                 (canvas.height/2);
-  
-    // find how far we dragged the mouse:
-    xMdragTot += (x - xMclik);					// Accumulate change-in-mouse-position,&
-    yMdragTot += (y - yMclik);
-    xMclik = x;													// Make next drag-measurement from here.
-    yMclik = y;
-  };
-  
-  function myMouseUp(ev, gl, canvas) {
-    runStop()
-    // Create right-handed 'pixel' coords with origin at WebGL canvas LOWER left;
-    var rect = ev.target.getBoundingClientRect();	// get canvas corners in pixels
-    var xp = ev.clientX - rect.left;									// x==0 at canvas left edge
-    var yp = canvas.height - (ev.clientY - rect.top);	// y==0 at canvas bottom edge
-    
-    // Convert to Canonical View Volume (CVV) coordinates too:
-    var x = (xp - canvas.width/2)  / 		// move origin to center of canvas and
-                 (canvas.width/2);			// normalize canvas to -1 <= x < +1,
-    var y = (yp - canvas.height/2) /		//										 -1 <= y < +1.
-                 (canvas.height/2);
-
-                 
-    isDrag = false;											// CLEAR our mouse-dragging flag, and
-    // accumulate any final bit of mouse-dragging we did:
-    xMdragTot += (x - xMclik);
-    yMdragTot += (y - yMclik);
-    //console.log('myMouseUp: xMdragTot,yMdragTot =',xMdragTot,',\t',yMdragTot);
-  };
