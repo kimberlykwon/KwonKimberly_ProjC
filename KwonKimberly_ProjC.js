@@ -2,15 +2,30 @@
 var VSHADER_SOURCE = 
   'uniform mat4 u_MvpMatrix;\n' +
   'uniform mat4 u_ModelMatrix;\n' +
+  'uniform mat4 u_NormalMatrix;\n' +
+  'uniform vec3 u_LightColor;\n' +     // Light color
+  'uniform vec3 u_LightPosition;\n' +  // Position of the light source
+  'uniform vec3 u_AmbientLight;\n' +   // Ambient light color
+  'attribute vec4 a_Normal;\n' +
   'attribute vec4 a_Position;\n' +
   'attribute vec4 a_Color;\n' +
   'varying vec4 v_Color;\n' +
   'varying vec4 v_Position;\n' +
   'void main() {\n' +
   '  gl_Position = u_MvpMatrix * a_Position;\n' +
+  '  vec3 normal = normalize(vec3(u_NormalMatrix * a_Normal));\n' +      // Calculate a normal to be fit with a model matrix, and make it 1.0 in length
   '  v_Position = u_ModelMatrix * a_Position;\n' +
   '  gl_PointSize = 10.0;\n' +
-  '  v_Color = a_Color;\n' +
+  // Calculate the light direction and make it 1.0 in length
+  '  vec3 lightDirection = normalize(u_LightPosition - vec3(v_Position));\n' +
+  // The dot product of the light direction and the normal
+  '  float nDotL = max(dot(lightDirection, normal), 0.0);\n' +
+  // Calculate the color due to diffuse reflection
+  '  vec3 diffuse = u_LightColor * a_Color.rgb * nDotL;\n' +
+  // Calculate the color due to ambient reflection
+  '  vec3 ambient = u_AmbientLight * a_Color.rgb;\n' +
+  // Add the surface colors due to diffuse reflection and ambient reflection
+  '  v_Color = vec4(diffuse + ambient, a_Color.a);\n' + 
   '}\n';
 
 // Fragment shader program----------------------------------
@@ -67,25 +82,46 @@ function main() {
     return;
   }
 
-  // Mouse move functions
-  // canvas.onmousedown =	function(ev){myMouseDown( ev, gl, canvas) }; 
-  // canvas.onmousemove = 	function(ev){myMouseMove( ev, gl, canvas) };
-  // canvas.onmouseup = function(ev){myMouseUp( ev, gl, canvas)};
-
   // Specify the color for clearing <canvas>
   gl.clearColor(0.0, 0.0, 0.0, 1.0);
   gl.enable(gl.DEPTH_TEST); 	  
 	
   // Get handle to graphics system's storage location of u_MvpMatrix
+  u_ModelMatrix = gl.getUniformLocation(gl.program, 'u_ModelMatrix');
   u_MvpMatrix = gl.getUniformLocation(gl.program, 'u_MvpMatrix');
-  if (!u_MvpMatrix) { 
-    console.log('Failed to get the storage location of u_MvpMatrix');
+  var u_NormalMatrix = gl.getUniformLocation(gl.program, 'u_NormalMatrix');
+  var u_LightColor = gl.getUniformLocation(gl.program, 'u_LightColor');
+  var u_LightPosition = gl.getUniformLocation(gl.program, 'u_LightPosition');
+  var u_AmbientLight = gl.getUniformLocation(gl.program, 'u_AmbientLight');
+  if (!u_MvpMatrix || !u_NormalMatrix || !u_LightColor || !u_LightPosition　|| !u_AmbientLight) { 
+    console.log('Failed to get the storage location');
     return;
   }
 
+  // Set the light color (white)
+  gl.uniform3f(u_LightColor, 0.8, 0.8, 0.8);
+  // Set the light direction (in the world coordinate)
+  gl.uniform3f(u_LightPosition, 5.0, 8.0, 7.0);
+  // Set the ambient light
+  gl.uniform3f(u_AmbientLight, 0.5, 0.5, 0.5);
+
   // Create a local version of our model matrix in JavaScript 
+  var modelMatrix = new Matrix4(); 
+  // Pass the model matrix to u_ModelMatrix
+  gl.uniformMatrix4fv(u_ModelMatrix, false, modelMatrix.elements);
+
   mvpMatrix = new Matrix4();
   mvpMatrix.setPerspective(30, canvas.width/canvas.height, 1, 100);
+  mvpMatrix.multiply(modelMatrix);
+  gl.uniformMatrix4fv(u_MvpMatrix, false, mvpMatrix.elements);
+
+  var normalMatrix = new Matrix4();
+
+  // Calculate the matrix to transform the normal based on the model matrix
+  normalMatrix.setInverseOf(modelMatrix);
+  normalMatrix.transpose();
+  // Pass the transformation matrix for normals to u_NormalMatrix
+  gl.uniformMatrix4fv(u_NormalMatrix, false, normalMatrix.elements);
 
   document.onkeydown= function(ev){keydown(ev, gl); };
 
