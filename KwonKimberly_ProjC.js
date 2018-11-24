@@ -22,13 +22,12 @@ var FSHADER_SOURCE =
   '}\n';
 
 // Animation
-var SPHERE_ANGLE_STEP = 45.0;
 var ANGLE_STEP = 45.0;
 
 
 // For VBOs:
 var g_BufID1;										// 1st Vertex Buffer Object ID# sent from GPU
-var g_BufID2;										// ID# for 2nd VBO.
+var g_BufID2;										//  ID# for 2nd VBO.
 var g_BufVerts1;								// # of vertices in our first VBO in the GPU.
 var g_BufVerts2;								// # of vertices in our second VBO in the GPU.
 		//----within VBO1:
@@ -432,6 +431,8 @@ function drawSphere(gl){
 
   mvpMatrix.translate(0.0, 0.0, 1.0);
 
+  mvpMatrix.rotate(currentAngle, 0.0, 0.0);
+
   mvpMatrix.scale(0.4,0.4,0.4);
 
   gl.uniformMatrix4fv(u_MvpMatrix, false, mvpMatrix.elements);
@@ -643,9 +644,6 @@ function animate(angle) {
   var now = Date.now();
   var elapsed = now - g_last;
   g_last = now;
-  
-  if(angle >   20.0 && ANGLE_STEP > 0) ANGLE_STEP = -ANGLE_STEP;
-  if(angle <  -85.0 && ANGLE_STEP < 0) ANGLE_STEP = -ANGLE_STEP;
 
   var newAngle = angle + (ANGLE_STEP * elapsed) / 1000.0;
   return newAngle %= 360;
