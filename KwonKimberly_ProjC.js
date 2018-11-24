@@ -21,12 +21,27 @@ var FSHADER_SOURCE =
   '  gl_FragColor = v_Color;\n' +
   '}\n';
 
-// Global Variables
-var ANGLE_STEP = 45.0; //rotation
+// Animation
 var SPHERE_ANGLE_STEP = 45.0;
-var NUNCHUCK_ANGLE_STEP = 45.0; 
+var ANGLE_STEP = 45.0;
+
+
+// For VBOs:
+var g_BufID1;										// 1st Vertex Buffer Object ID# sent from GPU
+var g_BufID2;										// ID# for 2nd VBO.
+var g_BufVerts1;								// # of vertices in our first VBO in the GPU.
+var g_BufVerts2;								// # of vertices in our second VBO in the GPU.
+		//----within VBO1:
+var a_PositionLoc;							// GPU location for 'a_Position' attrib in VBO1
+var a_ColorLoc;									// GPU location ofr 'a_Color' attrib in VBO1
+
+var g_showGouroudShading;
+var g_showPhongShading;
+var g_showPhongLighting;
+var g_showBillPhongLighting;
 
 var floatsPerVertex = 7;	
+
 
 function main() {
 //==============================================================================
@@ -54,9 +69,9 @@ function main() {
   }
 
   // Mouse move functions
-  canvas.onmousedown =	function(ev){myMouseDown( ev, gl, canvas) }; 
-  canvas.onmousemove = 	function(ev){myMouseMove( ev, gl, canvas) };
-  canvas.onmouseup = function(ev){myMouseUp( ev, gl, canvas)};
+  // canvas.onmousedown =	function(ev){myMouseDown( ev, gl, canvas) }; 
+  // canvas.onmousemove = 	function(ev){myMouseMove( ev, gl, canvas) };
+  // canvas.onmouseup = function(ev){myMouseUp( ev, gl, canvas)};
 
   // Specify the color for clearing <canvas>
   gl.clearColor(0.0, 0.0, 0.0, 1.0);
@@ -64,19 +79,13 @@ function main() {
 	
   // Get handle to graphics system's storage location of u_MvpMatrix
   u_MvpMatrix = gl.getUniformLocation(gl.program, 'u_MvpMatrix');
-  u_ModelMatrix = gl.getUniformLocation(gl.program, 'u_ModelMatrix');
-  //u_NormalMatrix = gl.getUniformLocation(gl.program, 'u_MvpMatrix');
-
-
-  if (!u_MvpMatrix || !u_ModelMatrix) { 
-    console.log('Failed to get the storage location of matrix');
+  if (!u_MvpMatrix) { 
+    console.log('Failed to get the storage location of u_MvpMatrix');
     return;
   }
 
   // Create a local version of our model matrix in JavaScript 
   mvpMatrix = new Matrix4();
-  modelMatrix = new Matrix4();
-
   mvpMatrix.setPerspective(30, canvas.width/canvas.height, 1, 100);
 
   document.onkeydown= function(ev){keydown(ev, gl); };
@@ -84,15 +93,11 @@ function main() {
   // Create, init current rotation angle value in JavaScript
   
   currentAngle = 0.0;
-  sphereAngle = 0.0;
-  nunchuckAngle = 0.0;
-  wholeNunchuckAngle = 0.0;
+
 
   //Start drawing: create 'tick' variable whose value is this function:
   var tick = function() {
     currentAngle = animate(currentAngle);  // Update the rotation angle
-    sphereAngle = animateSphere(sphereAngle);
-    wholeNunchuckAngle = animateNunchuck(wholeNunchuckAngle);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     drawResize();
     requestAnimationFrame(tick, canvas);   
@@ -110,47 +115,34 @@ function initVertexBuffer(gl) {
 // shapes.
  
  	// Make each 3D shape in its own array of vertices:
- // makeCylinder();					// create, fill the cylVerts array
-  makeBigSphere();						// create, fill the sphVerts array
-  //makeCube();
+  makeSphere();						// create, fill the sphVerts array
+  makeAxes();
   makeGroundGrid();
-  //makeTri();
   
   // how many floats total needed to store all shapes?
-	//var mySiz = (cylVerts.length + sphVerts.length + cubeVerts.length + clockVerts.length + bandVerts.length + gndVerts.length + triVerts.length);						
-	var mySiz = (bsphVerts.length + gndVerts.length);						
-
+	var mySiz = (sphVerts.length + axesVerts.length + gndVerts.length);						
 
 	// How many vertices total?
 	var nn = mySiz / floatsPerVertex;
 	// Copy all shapes into one big Float32 array:
   var colorShapes = new Float32Array(mySiz);
 	// Copy them:  remember where to start for each shape:
-	// cylStart = 0;							// we stored the cylinder first.
-  // for(i=0,j=0; j< cylVerts.length; i++,j++) {
-  // 	colorShapes[i] = cylVerts[j];
-  // }
 
-  bsphStart = 0;						// next, we'll store the sphere;
-	for(i=0,j=0; j< bsphVerts.length; i++, j++) {// don't initialize i -- reuse it!
-		colorShapes[i] = bsphVerts[j];
+  var i = 0;
+  sphStart = 0;						// next, we'll store the sphere;
+	for(j=0; j< sphVerts.length; i++, j++) {// don't initialize i -- reuse it!
+		colorShapes[i] = sphVerts[j];
   }
-    
-  // cubeStart = i;
-  // for(j=0; j< cubeVerts.length; i++, j++){
-  //   colorShapes[i] = cubeVerts[j];
-  // }
-
+  
+  axesStart = i;
+  for(j=0; j< axesVerts.length; i++, j++){
+    colorShapes[i] = axesVerts[j];
+  }
 
   gndStart = i;
   for(j=0; j< gndVerts.length; i++, j++){
     colorShapes[i] = gndVerts[j];
   }
-
-  // triStart = i;
-  // for(j=0; j< triVerts.length; i++, j++){
-  //   colorShapes[i] = triVerts[j];
-  // }
 
   // Create a buffer object on the graphics hardware:
   var shapeBufferHandle = gl.createBuffer();  
@@ -272,90 +264,11 @@ function makeCube() {
   ]);
 }
 
-function makeCylinder() {
-  var ctrColr = new Float32Array([0.2, 0.2, 0.2]);	
-  var topColr = new Float32Array([0.6, 0.2, 0.2]);	
-  var botColr = new Float32Array([0.13, 0.0, 0.0]);	
-  var capVerts = 16;	// # of vertices around the topmost 'cap' of the shape
- 
-  // Create a (global) array to hold this cylinder's vertices;
-  cylVerts = new Float32Array(  ((capVerts*6) -2) * floatsPerVertex);
-										// # of vertices * # of elements needed to store them. 
-
-	// Create circle-shaped top cap of cylinder at z=+1.0, radius 1.0
-	// v counts vertices: j counts array elements (vertices * elements per vertex)
-	for(v=1,j=0; v<2*capVerts; v++,j+=floatsPerVertex) {	
-		// skip the first vertex--not needed.
-		if(v%2==0)
-		{				// put even# vertices at center of cylinder's top cap:
-			cylVerts[j  ] = 0.0; // x
-			cylVerts[j+1] = 3.0; // y
-			cylVerts[j+2] = 0.0; // z
-			cylVerts[j+3] = 1.0; // w			// r,g,b = topColr[]
-			cylVerts[j+4]=ctrColr[0]; 
-			cylVerts[j+5]=ctrColr[1]; 
-			cylVerts[j+6]=ctrColr[2];
-		}
-		else { 	// put odd# vertices around the top cap's outer edge;
-						// x,y,z,w == cos(theta),sin(theta), 1.0, 1.0
-						// 					theta = 2*PI*((v-1)/2)/capVerts = PI*(v-1)/capVerts
-			cylVerts[j  ] = Math.cos(Math.PI*(v-1)/capVerts);	// x
-			cylVerts[j+1] = 3.0;	// y
-			cylVerts[j+2] = Math.sin(Math.PI*(v-1)/capVerts);	// z
-			cylVerts[j+3] = 1.0;	// w
-			cylVerts[j+4]=topColr[0]; 
-			cylVerts[j+5]=topColr[1]; 
-			cylVerts[j+6]=topColr[2];			
-		}
-	}
-	// Create the cylinder side walls, made of 2*capVerts vertices.
-	// v counts vertices within the wall; j continues to count array elements
-	for(v=0; v< 2*capVerts; v++, j+=floatsPerVertex) {
-		if(v%2==0)	// position all even# vertices along top cap:
-		{		
-				cylVerts[j  ] = Math.cos(Math.PI*(v)/capVerts);	// x
-				cylVerts[j+1] = 3.0;	// y
-				cylVerts[j+2] = Math.sin(Math.PI*(v)/capVerts);	// z
-				cylVerts[j+3] = 1.0;	// w
-				cylVerts[j+4]=topColr[0]; 
-				cylVerts[j+5]=topColr[1]; 
-				cylVerts[j+6]=topColr[2];			
-		}
-		else		// position all odd# vertices along the bottom cap:
-		{
-        cylVerts[j  ] = Math.cos(Math.PI*(v-1)/capVerts);	// x
-				cylVerts[j+1] = -3.0;	// y
-				cylVerts[j+2] = Math.sin(Math.PI*(v-1)/capVerts);	// z
-				cylVerts[j+3] = 1.0;	// w
-				cylVerts[j+4]=botColr[0]; 
-				cylVerts[j+5]=botColr[1]; 
-				cylVerts[j+6]=botColr[2];			
-		}
-	}
-	// Create the cylinder bottom cap, made of 2*capVerts -1 vertices.
-	// v counts the vertices in the cap; j continues to count array elements
-	for(v=0; v < (2*capVerts -1); v++, j+= floatsPerVertex) {
-		if(v%2==0) {	// position even #'d vertices around bot cap's outer edge
-      cylVerts[j  ] = Math.cos(Math.PI*(v)/capVerts);	// x
-			cylVerts[j+1] = -3.0;		// y
-			cylVerts[j+2] = Math.sin(Math.PI*(v)/capVerts);	// z
-			cylVerts[j+3] = 1.0;	// w
-			cylVerts[j+4]=botColr[0]; 
-			cylVerts[j+5]=botColr[1]; 
-			cylVerts[j+6]=botColr[2];		
-		}
-		else {				// position odd#'d vertices at center of the bottom cap:
-      cylVerts[j  ] = 0.0; 			// x
-			cylVerts[j+1] = -3.0;	    // y
-			cylVerts[j+2] = 0.0;      // z
-			cylVerts[j+3] = 1.0;			// w
-			cylVerts[j+4]=botColr[0]; 
-			cylVerts[j+5]=botColr[1]; 
-			cylVerts[j+6]=botColr[2];
-		}
-	}
+function randNum(){
+  var rand = Math.random()*(0.9-0.6) + 0.6;
+  var power = Math.pow(10, 1);
+  return Math.floor(rand*power) / power;
 }
-
 
 function makeSphere() {
 //==============================================================================
@@ -442,90 +355,20 @@ function makeSphere() {
   }
 }
 
-function makeBigSphere() {
-  //==============================================================================
-  // Make a sphere from one OpenGL TRIANGLE_STRIP primitive.   Make ring-like 
-  // equal-lattitude 'slices' of the sphere (bounded by planes of constant z), 
-  // and connect them as a 'stepped spiral' design (see makeCylinder) to build the
-  // sphere from one triangle strip.
-    var slices = 13;		// # of slices of the sphere along the z axis. >=3 req'd
-                        // (choose odd # or prime# to avoid accidental symmetry)
-    var sliceVerts	= 27;	// # of vertices around the top edge of the slice
-                        // (same number of vertices on bottom of slice, too)
-    var topColr = new Float32Array([0.3, 0.3, 0.3]);	// North Pole: light gray
-    //var equColr = new Float32Array([0.0, 0.0, 0.0]);	// Equator:    bright green
-    var botColr = new Float32Array([0.3, 0.3, 0.3]);	// South Pole: brightest gray.
-    var sliceAngle = Math.PI/slices;	// lattitude angle spanned by one slice.
-  
-    // Create a (global) array to hold this sphere's vertices:
-    bsphVerts = new Float32Array(  ((slices * 2* sliceVerts) -2) * floatsPerVertex);
-                      // # of vertices * # of elements needed to store them. 
-                      // each slice requires 2*sliceVerts vertices except 1st and
-                      // last ones, which require only 2*sliceVerts-1.
-                      
-    // Create dome-shaped top slice of sphere at z=+1
-    // s counts slices; v counts vertices; 
-    // j counts array elements (vertices * elements per vertex)
-    var cos0 = 0.0;					// sines,cosines of slice's top, bottom edge.
-    var sin0 = 0.0;
-    var cos1 = 0.0;
-    var sin1 = 0.0;	
-    var j = 0;							// initialize our array index
-    var isLast = 0;
-    var isFirst = 1;
-    for(s=0; s<slices; s++) {	// for each slice of the sphere,
-      // find sines & cosines for top and bottom of this slice
-      if(s==0) {
-        isFirst = 1;	// skip 1st vertex of 1st slice.
-        cos0 = 1.0; 	// initialize: start at north pole.
-        sin0 = 0.0;
-      }
-      else {					// otherwise, new top edge == old bottom edge
-        isFirst = 0;	
-        cos0 = cos1;
-        sin0 = sin1;
-      }								// & compute sine,cosine for new bottom edge.
-      cos1 = Math.cos((s+1)*sliceAngle);
-      sin1 = Math.sin((s+1)*sliceAngle);
-      // go around the entire slice, generating TRIANGLE_STRIP verts
-      // (Note we don't initialize j; grows with each new attrib,vertex, and slice)
-      if(s==slices-1) isLast=1;	// skip last vertex of last slice.
-      for(v=isFirst; v< 2*sliceVerts-isLast; v++, j+=floatsPerVertex) {	
-      // for(v=isFirst; v< sliceVerts-isLast; v++, j+=floatsPerVertex) {	
-        if(v%2==0)
-        {				// put even# vertices at the the slice's top edge  
-          bsphVerts[j  ] = sin0 * Math.cos(Math.PI*(v)/sliceVerts); 	
-          bsphVerts[j+1] = sin0 * Math.sin(Math.PI*(v)/sliceVerts);	
-          bsphVerts[j+2] = cos0;		
-          bsphVerts[j+3] = 1.0;			
-        }
-        else { 	// put odd# vertices around the slice's lower edge;
-                // x,y,z,w == cos(theta),sin(theta), 1.0, 1.0
-                // 					theta = 2*PI*((v-1)/2)/capVerts = PI*(v-1)/capVerts
-          bsphVerts[j  ] = sin1 * Math.cos(Math.PI*(v-1)/sliceVerts);		// x
-          bsphVerts[j+1] = sin1 * Math.sin(Math.PI*(v-1)/sliceVerts);		// y
-          bsphVerts[j+2] = cos1;																				// z
-          bsphVerts[j+3] = 1.0;																				// w.		
-        }
-        if(s==0) {	// finally, set some interesting colors for vertices:
-          bsphVerts[j+4]=topColr[0]; 
-          bsphVerts[j+5]=topColr[1]; 
-          bsphVerts[j+6]=topColr[2];	
-          }
-        else if(s==slices-1) {
-          bsphVerts[j+4]=botColr[0]; 
-          bsphVerts[j+5]=botColr[1]; 
-          bsphVerts[j+6]=botColr[2];	
-        }
-        else {
-            //var num = randNum();
-            bsphVerts[j+4]=0.3;
-            bsphVerts[j+5]=0.3;
-            bsphVerts[j+6]=0.3;			
-        }
-      }
-    }
-  }
+function makeAxes(){
+  axesVerts = new Float32Array(
+    // Drawing Axes: Draw them using gl.LINES drawing primitive;
+     	// +x axis RED; +y axis GREEN; +z axis BLUE; origin: GRAY
+		[0.0,  0.0,  0.0, 1.0,		0.3,  0.3,  0.3,	// X axis line (origin: gray)
+		 1.3,  0.0,  0.0, 1.0,		1.0,  0.3,  0.3,	// 						 (endpoint: red)
+		 
+		 0.0,  0.0,  0.0, 1.0,    0.3,  0.3,  0.3,	// Y axis line (origin: white)
+		 0.0,  1.3,  0.0, 1.0,		0.3,  1.0,  0.3,	//						 (endpoint: green)
+
+		 0.0,  0.0,  0.0, 1.0,		0.3,  0.3,  0.3,	// Z axis line (origin:white)
+		 0.0,  0.0,  1.3, 1.0,		0.3,  0.3,  1.0,	//						 (endpoint: blue)
+  ]);
+}
 
 function makeGroundGrid() {
   //==============================================================================
@@ -584,298 +427,28 @@ function makeGroundGrid() {
     }
 }
 
-function makeTri(){
-  var c30 = Math.sqrt(0.75);					// == cos(30deg) == sqrt(3) / 2
-	var sq2	= Math.sqrt(2.0);		
-  triVerts = new Float32Array([
-    // Vertex coordinates(x,y,z,w) and color (R,G,B) for a new color tetrahedron:
-    //		Apex on +z axis; equilateral triangle base at z=0
-        // Face 0: (right side)  
-       0.0,	 0.0, sq2, 1.0,		0.3, 	0.4,	0.4,	// Node 0 (apex, +z axis;  blue)
-       c30, -0.5, 0.0, 1.0, 		1.0,  1.0,  1.0, 	// Node 1 (base: lower rt; red)
-       0.0,  1.0, 0.0, 1.0,  		0.2,  0.2,  0.2,	// Node 2 (base: +y axis;  grn)
-        // Face 1: (left side)
-       0.0,	 0.0, sq2, 1.0,			0.3, 	0.4,	0.4,	// Node 0 (apex, +z axis;  blue)
-       0.0,  1.0, 0.0, 1.0,  		0.2,  0.2,  0.2,	// Node 2 (base: +y axis;  grn)
-      -c30, -0.5, 0.0, 1.0, 		1.0,  1.0,  1.0, 	// Node 3 (base:lower lft; white)
-        // Face 2: (lower side)
-       0.0,	 0.0, sq2, 1.0,			0.3, 	0.4,	0.4,	// Node 0 (apex, +z axis;  blue) 
-      -c30, -0.5, 0.0, 1.0, 		1.0,  1.0,  1.0, 	// Node 3 (base:lower lft; white)
-       c30, -0.5, 0.0, 1.0, 		1.0,  1.0,  1.0, 	// Node 1 (base: lower rt; red) 
-         // Face 3: (base side)  
-      -c30, -0.5, 0.0, 1.0, 		1.0,  1.0,  1.0, 	// Node 3 (base:lower lft; white)
-       0.0,  1.0, 0.0, 1.0,  		0.2,  0.2,  0.2,	// Node 2 (base: +y axis;  grn)
-       c30, -0.5, 0.0, 1.0, 		1.0,  1.0,  1.0, 	// Node 1 (base: lower rt; red)
-  ])
-}
-    
-
-function randNum(){
-  var rand = Math.random()*(0.9-0.6) + 0.6;
-  var power = Math.pow(10, 1);
-  return Math.floor(rand*power) / power;
-}
-
-function randBlue(){
-  var rand = Math.random()*(0.4-0.2) + 0.2;
-  var power = Math.pow(10, 1);
-  return Math.floor(rand*power) / power;
-}
-
-
-function drawNunchucks(gl) {
+function drawSphere(gl){
   pushMatrix(mvpMatrix);
-  //-------Draw Cylinder:
-  mvpMatrix.translate(-0.4,-0.4, 0.4);  // 'set' means DISCARD old matrix,
-  						// (drawing axes centered in CVV), and then make new
-  						// drawing axes moved to the lower-left corner of CVV. 
-  //mvpMatrix.scale(1,1,-1);							// convert to left-handed coord sys
-  mvpMatrix.scale(0.1, 0.1, 0.1); // maybe fix idk  // to match WebGL display canvas.
-  mvpMatrix.rotate(wholeNunchuckAngle, 1, 1, 0);
-  var dist = Math.sqrt(xMdragTot*xMdragTot+yMdragTot*yMdragTot);
-  mvpMatrix.rotate(dist*120.0, -yMdragTot+0.0001, xMdragTot+0.0001, 0.0);
 
-  // Pass our current matrix to the vertex shaders:
-  gl.uniformMatrix4fv(u_MvpMatrix, false, mvpMatrix.elements);
-  // Draw the cylinder's vertices, and no other vertices:
-  gl.drawArrays(gl.TRIANGLE_STRIP,				// use this drawing primitive, and
-  							cylStart/floatsPerVertex, // start at this vertex number, and
-                cylVerts.length/floatsPerVertex);	// draw this many vertices.
+  mvpMatrix.translate(0.0, 0.0, 1.0);
 
-  // ---------Draw circle joints (5)
-  // joint 1
-  mvpMatrix.translate(0.0, 4.0, 0.0); 
-  mvpMatrix.rotate(nunchuckAngle*0.2, 0, 0, 1); 
-  //console.log("current angle: " + nunchuckAngle);
+  mvpMatrix.scale(0.4,0.4,0.4);
 
-  // Pass our current matrix to the vertex shaders:
   gl.uniformMatrix4fv(u_MvpMatrix, false, mvpMatrix.elements);
-  // Draw just the sphere's vertices
-  gl.drawArrays(gl.TRIANGLE_STRIP, 				// use this drawing primitive, and
-                sphStart/floatsPerVertex,	// start at this vertex number, and 
-                sphVerts.length/floatsPerVertex);	// draw this many vertices
 
-  // joint 2
-  mvpMatrix.translate(0.0, 2.0, 0.0);  
-  mvpMatrix.rotate(nunchuckAngle*0.2, 0, 0, 1); 
+  // Now, using these drawing axes, draw our ground plane: 
+  gl.drawArrays(gl.TRIANGLE_STRIP,							// use this drawing primitive, and
+                sphStart/floatsPerVertex,	// start at this vertex number, and
+                sphVerts.length/floatsPerVertex);		// draw this many vertices
 
-  // Pass our current matrix to the vertex shaders:
-  gl.uniformMatrix4fv(u_MvpMatrix, false, mvpMatrix.elements);
-      // Draw just the sphere's vertices
-  gl.drawArrays(gl.TRIANGLE_STRIP,				// use this drawing primitive, and
-                sphStart/floatsPerVertex,	// start at this vertex number, and 
-                sphVerts.length/floatsPerVertex);	// draw this many vertices
-  
-  // joint 3
-  mvpMatrix.translate(0.0, 2.0, 0.0); 
-  mvpMatrix.rotate(nunchuckAngle*0.2, 0, 0, 1);  
-
-  // Pass our current matrix to the vertex shaders:
-  gl.uniformMatrix4fv(u_MvpMatrix, false, mvpMatrix.elements);
-      // Draw just the sphere's vertices
-  gl.drawArrays(gl.TRIANGLE_STRIP,				// use this drawing primitive, and
-                sphStart/floatsPerVertex,	// start at this vertex number, and 
-                sphVerts.length/floatsPerVertex);	// draw this many vertices
-  
-  // joint 4
-  mvpMatrix.translate(0.0, 2.0, 0.0); 
-  mvpMatrix.rotate(nunchuckAngle*0.2, 0, 0, 1);  
-
-  // Pass our current matrix to the vertex shaders:
-  gl.uniformMatrix4fv(u_MvpMatrix, false, mvpMatrix.elements);
-      // Draw just the sphere's vertices
-  gl.drawArrays(gl.TRIANGLE_STRIP,				// use this drawing primitive, and
-                sphStart/floatsPerVertex,	// start at this vertex number, and 
-                sphVerts.length/floatsPerVertex);	// draw this many vertices
- 
-  // joint 5
-  mvpMatrix.translate(0.0, 2.0, 0.0); 
-  mvpMatrix.rotate(nunchuckAngle*0.2, 0, 0, 1);  
-
-  // Pass our current matrix to the vertex shaders:
-  gl.uniformMatrix4fv(u_MvpMatrix, false, mvpMatrix.elements);
-      // Draw just the sphere's vertices
-  gl.drawArrays(gl.TRIANGLE_STRIP,				// use this drawing primitive, and
-                sphStart/floatsPerVertex,	// start at this vertex number, and 
-                sphVerts.length/floatsPerVertex);	// draw this many vertices
- 
-
-  //-------Draw Spinning Cylinder:
-  mvpMatrix.translate(0.0, 4.0, 0.0);  // 'set' means DISCARD old matrix,
-  mvpMatrix.rotate(180, 1, 0, 0);
-  mvpMatrix.rotate(nunchuckAngle*0.05, 0, 0, 1);
-
-  // Pass our current matrix to the vertex shaders:
-  gl.uniformMatrix4fv(u_MvpMatrix, false, mvpMatrix.elements);
-  // Draw the cylinder's vertices, and no other vertices:
-  gl.drawArrays(gl.TRIANGLE_STRIP,				// use this drawing primitive, and
-  							cylStart/floatsPerVertex, // start at this vertex number, and
-                cylVerts.length/floatsPerVertex);	// draw this many vertices. 
-  mvpMatrix = popMatrix();         
-}
-
-function drawWatch(gl) {     
-  pushMatrix(mvpMatrix);      
-  // ------- watch face
-  mvpMatrix.translate(0.4, 0.4, 0.4);  // 'set' means DISCARD old matrix,
-  						// (drawing axes centered in CVV), and then make new
-  						// drawing axes moved to the lower-left corner of CVV. 
-  																				// to match WebGL display canvas.
-                                          
-  mvpMatrix.scale(.075, .075, .075); // maybe fix idk
-
-  // FIX THIS: z needs to point up; y pointing back
-  mvpMatrix.rotate(currentAngle, 1, 1, 0);  // spin around y axis.
-
-  // Pass our current matrix to the vertex shaders:
-  gl.uniformMatrix4fv(u_MvpMatrix, false, mvpMatrix.elements);
-  // Draw the cylinder's vertices, and no other vertices:
-  gl.drawArrays(gl.TRIANGLE_STRIP,				// use this drawing primitive, and
-  							clockStart/floatsPerVertex, // start at this vertex number, and
-                clockVerts.length/floatsPerVertex);	// draw this many vertices.
-                
-  pushMatrix(mvpMatrix);
-  
-  // // other hand
-  //mvpMatrix = popMatrix();
-  mvpMatrix.translate(-2.0, 0.0, 0.0);  // 'set' means DISCARD old matrix,
-  mvpMatrix.rotate(currentAngle*0.4, 0, 1, 0);  // Spin on XY diagonal axis
-  gl.uniformMatrix4fv(u_MvpMatrix, false, mvpMatrix.elements);
-  gl.drawArrays(gl.TRIANGLES,           // draw triangles from verts in VBO
-                bandStart/floatsPerVertex,                     // start at vertex 12,
-                bandVerts.length/floatsPerVertex);                    // and draw exactly 36 vertices.
-  
-  mvpMatrix.translate(-1.0, 0.0, 0.0);  // 'set' means DISCARD old matrix,
-  mvpMatrix.rotate(currentAngle*0.1, 0, 1, 0);  // Spin on XY diagonal axis
-  gl.uniformMatrix4fv(u_MvpMatrix, false, mvpMatrix.elements);
-  gl.drawArrays(gl.TRIANGLES,           // draw triangles from verts in VBO
-                bandStart/floatsPerVertex,                     // start at vertex 12,
-                bandVerts.length/floatsPerVertex);                    //
-  mvpMatrix.translate(-1.0, 0.0, 0.0);  // 'set' means DISCARD old matrix,
-  mvpMatrix.rotate(currentAngle*0.1, 0, 1, 0);  // Spin on XY diagonal axis
-  gl.uniformMatrix4fv(u_MvpMatrix, false, mvpMatrix.elements);
-  gl.drawArrays(gl.TRIANGLES,           // draw triangles from verts in VBO
-                bandStart/floatsPerVertex,                     // start at vertex 12,
-                bandVerts.length/floatsPerVertex);                    //
-
-  mvpMatrix.translate(-1.0, 0.0, 0.0);  // 'set' means DISCARD old matrix,
-  mvpMatrix.rotate(currentAngle*0.1, 0, 1, 0);  // Spin on XY diagonal axis
-  gl.uniformMatrix4fv(u_MvpMatrix, false, mvpMatrix.elements);
-  gl.drawArrays(gl.TRIANGLES,           // draw triangles from verts in VBO
-                bandStart/floatsPerVertex,                     // start at vertex 12,
-                bandVerts.length/floatsPerVertex);                    //
-  mvpMatrix.translate(-1.0, 0.0, 0.0);  // 'set' means DISCARD old matrix,
-  mvpMatrix.rotate(currentAngle*0.1, 0, 1, 0);  // Spin on XY diagonal axis
-  gl.uniformMatrix4fv(u_MvpMatrix, false, mvpMatrix.elements);
-  gl.drawArrays(gl.TRIANGLES,           // draw triangles from verts in VBO
-                bandStart/floatsPerVertex,                     // start at vertex 12,
-                bandVerts.length/floatsPerVertex);                    //    
-  mvpMatrix.translate(-1.0, 0.0, 0.0);  // 'set' means DISCARD old matrix,
-  mvpMatrix.rotate(currentAngle*0.1, 0, 1, 0);  // Spin on XY diagonal axis
-  gl.uniformMatrix4fv(u_MvpMatrix, false, mvpMatrix.elements);
-  gl.drawArrays(gl.TRIANGLES,           // draw triangles from verts in VBO
-                bandStart/floatsPerVertex,                     // start at vertex 12,
-                bandVerts.length/floatsPerVertex);                    //
-  mvpMatrix.translate(-1.0, 0.0, 0.0);  // 'set' means DISCARD old matrix,
-  mvpMatrix.rotate(currentAngle*0.1, 0, 1, 0);  // Spin on XY diagonal axis
-  gl.uniformMatrix4fv(u_MvpMatrix, false, mvpMatrix.elements);
-  gl.drawArrays(gl.TRIANGLES,           // draw triangles from verts in VBO
-                bandStart/floatsPerVertex,                     // start at vertex 12,
-                bandVerts.length/floatsPerVertex);                    //
-
-
-
-  // // other hand
-  mvpMatrix = popMatrix();
-  mvpMatrix.translate(2.0, 0.0, 0.0);  // 'set' means DISCARD old matrix,
-  mvpMatrix.rotate(currentAngle*0.4, 0, 1, 0);  // Spin on XY diagonal axis
-  gl.uniformMatrix4fv(u_MvpMatrix, false, mvpMatrix.elements);
-  gl.drawArrays(gl.TRIANGLES,           // draw triangles from verts in VBO
-                bandStart/floatsPerVertex,                     // start at vertex 12,
-                bandVerts.length/floatsPerVertex);                    // and draw exactly 36 vertices.
-  
-  mvpMatrix.translate(1.0, 0.0, 0.0);  // 'set' means DISCARD old matrix,
-  mvpMatrix.rotate(currentAngle*0.1, 0, 1, 0);  // Spin on XY diagonal axis
-  gl.uniformMatrix4fv(u_MvpMatrix, false, mvpMatrix.elements);
-  gl.drawArrays(gl.TRIANGLES,           // draw triangles from verts in VBO
-                bandStart/floatsPerVertex,                     // start at vertex 12,
-                bandVerts.length/floatsPerVertex);                    //
-  mvpMatrix.translate(1.0, 0.0, 0.0);  // 'set' means DISCARD old matrix,
-  mvpMatrix.rotate(currentAngle*0.1, 0, 1, 0);  // Spin on XY diagonal axis
-  gl.uniformMatrix4fv(u_MvpMatrix, false, mvpMatrix.elements);
-  gl.drawArrays(gl.TRIANGLES,           // draw triangles from verts in VBO
-                bandStart/floatsPerVertex,                     // start at vertex 12,
-                bandVerts.length/floatsPerVertex);                    //
-
-  mvpMatrix.translate(1.0, 0.0, 0.0);  // 'set' means DISCARD old matrix,
-  mvpMatrix.rotate(currentAngle*0.1, 0, 1, 0);  // Spin on XY diagonal axis
-  gl.uniformMatrix4fv(u_MvpMatrix, false, mvpMatrix.elements);
-  gl.drawArrays(gl.TRIANGLES,           // draw triangles from verts in VBO
-                bandStart/floatsPerVertex,                     // start at vertex 12,
-                bandVerts.length/floatsPerVertex);                    //
-  mvpMatrix.translate(1.0, 0.0, 0.0);  // 'set' means DISCARD old matrix,
-  mvpMatrix.rotate(currentAngle*0.1, 0, 1, 0);  // Spin on XY diagonal axis
-  gl.uniformMatrix4fv(u_MvpMatrix, false, mvpMatrix.elements);
-  gl.drawArrays(gl.TRIANGLES,           // draw triangles from verts in VBO
-                bandStart/floatsPerVertex,                     // start at vertex 12,
-                bandVerts.length/floatsPerVertex);                    //    
-  mvpMatrix.translate(1.0, 0.0, 0.0);  // 'set' means DISCARD old matrix,
-  mvpMatrix.rotate(currentAngle*0.1, 0, 1, 0);  // Spin on XY diagonal axis
-  gl.uniformMatrix4fv(u_MvpMatrix, false, mvpMatrix.elements);
-  gl.drawArrays(gl.TRIANGLES,           // draw triangles from verts in VBO
-                bandStart/floatsPerVertex,                     // start at vertex 12,
-                bandVerts.length/floatsPerVertex);                    //
-  mvpMatrix.translate(1.0, 0.0, 0.0);  // 'set' means DISCARD old matrix,
-  mvpMatrix.rotate(currentAngle*0.1, 0, 1, 0);  // Spin on XY diagonal axis
-  gl.uniformMatrix4fv(u_MvpMatrix, false, mvpMatrix.elements);
-  gl.drawArrays(gl.TRIANGLES,           // draw triangles from verts in VBO
-                bandStart/floatsPerVertex,                     // start at vertex 12,
-                bandVerts.length/floatsPerVertex);                    //
-  
   mvpMatrix = popMatrix();
 }
 
-
-function drawSmallShapes(gl){
-  // pushMatrix(mvpMatrix);
-
-  // mvpMatrix.translate(0.8, 0.125, 0.0);
-  // mvpMatrix.scale(0.2, 0.2, 0.2);
-  // //mvpMatrix.rotate(20.0, 1, 0, 0);
-  // gl.uniformMatrix4fv(u_MvpMatrix, false, mvpMatrix.elements);
-  
-  // gl.drawArrays(gl.TRIANGLES, 
-  //               triStart/floatsPerVertex,
-  //               triVerts.length/floatsPerVertex);
-
-  // mvpMatrix = popMatrix();
-  // pushMatrix(mvpMatrix);
-
-  // mvpMatrix.translate(-1, 0.2, 0.1);
-  // mvpMatrix.scale(0.1, 0.1, 0.1);
-  // gl.uniformMatrix4fv(u_MvpMatrix, false, mvpMatrix.elements);
-  
-  // gl.drawArrays(gl.TRIANGLES, 
-  //               cubeStart/floatsPerVertex,
-  //               cubeVerts.length/floatsPerVertex);
-  // mvpMatrix = popMatrix();
-  pushMatrix(mvpMatrix);
-
-  mvpMatrix.translate(2, 0.5, 1);
-  mvpMatrix.scale(0.5, 0.5, 0.5);
-  mvpMatrix.rotate(sphereAngle*0.2, 0, 0, 1);  // Spin on XY diagonal axis
-  gl.uniformMatrix4fv(u_MvpMatrix, false, mvpMatrix.elements);
-  
-  gl.drawArrays(gl.TRIANGLE_STRIP, 
-                bsphStart/floatsPerVertex,
-                bsphVerts.length/floatsPerVertex);
-  mvpMatrix = popMatrix();
-}
 
 function drawGrid(gl){
   pushMatrix(mvpMatrix);
   // Rotate to make a new set of 'world' drawing axes: 
-  //mvpMatrix.translate(0.0, 0.0, 0.0);	
+  mvpMatrix.translate(0.0, 0.0, 0.0);	
   //mvpMatrix.rotate(-90.0, 1,0,0);	// new one has "+z points upwards",
 
   mvpMatrix.scale(0.1, 0.1, 0.1);		// shrink the drawing axes 
@@ -885,6 +458,12 @@ function drawGrid(gl){
   gl.drawArrays(gl.LINES,							// use this drawing primitive, and
                 gndStart/floatsPerVertex,	// start at this vertex number, and
                 gndVerts.length/floatsPerVertex);		// draw this many vertices
+  
+  mvpMatrix.scale(4, 4, 4);
+  gl.uniformMatrix4fv(u_MvpMatrix, false, mvpMatrix.elements);
+  gl.drawArrays(gl.LINES, 
+                axesStart/floatsPerVertex,
+                axesVerts.length/floatsPerVertex);				// start at vertex #12; draw 6 vertices
   
   mvpMatrix = popMatrix();
 }
@@ -903,12 +482,10 @@ function draw(gl){
   						gl.drawingBufferWidth, 				// viewport width, height.
   						gl.drawingBufferHeight);
               
-  vpAspect = ((gl.drawingBufferWidth)	/				// On-screen aspect ratio for
+  vpAspect = (gl.drawingBufferWidth 	/				// On-screen aspect ratio for
               gl.drawingBufferHeight);				// this camera: width/height.
   
   mvpMatrix.setIdentity();    // DEFINE 'world-space' coords.
-  modelMatrix.setIdentity();
-
           
   // For this viewport, set camera's eye point and the viewing volume:
   mvpMatrix.setPerspective(35.0, 				// fovy: y-axis field-of-view in degrees 	
@@ -930,9 +507,7 @@ function draw(gl){
 }
 
 function drawAll(gl){
-  //drawNunchucks(gl);
-  //drawWatch(gl);
-  drawSmallShapes(gl);
+  drawSphere(gl);
   drawGrid(gl);
 }
 
@@ -1077,33 +652,87 @@ function animate(angle) {
 }
 
 var d_last = Date.now();
-function animateNunchuck(angle) {
-  var now = Date.now();
-  var elapsed = now - d_last;
-  d_last = now;
 
-  var newAngle = angle + (NUNCHUCK_ANGLE_STEP * elapsed) / 1000.0;
-  return newAngle %= 360;
-}
-
-var s_last = Date.now();
-function animateSphere(angle) {
-  var now = Date.now();
-  var elapsed = now - s_last;
-  s_last = now;
-
-  var newAngle = angle + (SPHERE_ANGLE_STEP * elapsed) / 1000.0;
-  return newAngle %= 360;
-}
 
 function drawResize() {
   var nuCanvas = document.getElementById('HTML5_canvas');	// get current canvas
   var nuGL = getWebGLContext(nuCanvas);							// and context:
 
-  // Make canvas fill our browser window:
-  // todo: fix
-  nuCanvas.width = innerWidth-5;
-  nuCanvas.height = innerHeight - 150;
+  //Make canvas fill the top 3/4 of our browser window:
+  nuCanvas.width = innerWidth;
+  nuCanvas.height = innerHeight*(4/5);
 
   draw(nuGL);				
 }
+
+//==================HTML Button Callbacks
+function runStop() {
+  if(ANGLE_STEP*ANGLE_STEP > 1) {
+    myTmp = ANGLE_STEP;
+    ANGLE_STEP = 0;
+  }
+  else {
+  	ANGLE_STEP = myTmp;
+  }
+}
+
+// function myMouseDown(ev, gl, canvas) {  
+//     runStop();
+//   // Create right-handed 'pixel' coords with origin at WebGL canvas LOWER left;
+//     var rect = ev.target.getBoundingClientRect();	// get canvas corners in pixels
+//     var xp = ev.clientX - rect.left;									// x==0 at canvas left edge
+//     var yp = canvas.height - (ev.clientY - rect.top);	// y==0 at canvas bottom edge
+    
+//     // Convert to Canonical View Volume (CVV) coordinates too:
+//     var x = (xp - canvas.width/2)  / 		// move origin to center of canvas and
+//                  (canvas.width/2);			// normalize canvas to -1 <= x < +1,
+//     var y = (yp - canvas.height/2) /		//										 -1 <= y < +1.
+//                  (canvas.height/2);
+    
+//     isDrag = true;											// set our mouse-dragging flag
+//     xMclik = x;													// record where mouse-dragging began
+//     yMclik = y;
+//   };
+  
+  
+//   function myMouseMove(ev, gl, canvas) {  
+//     if(isDrag==false) return;				// IGNORE all mouse-moves except 'dragging'
+  
+//     // Create right-handed 'pixel' coords with origin at WebGL canvas LOWER left;
+//     var rect = ev.target.getBoundingClientRect();	// get canvas corners in pixels
+//     var xp = ev.clientX - rect.left;									// x==0 at canvas left edge
+//     var yp = canvas.height - (ev.clientY - rect.top);	// y==0 at canvas bottom edge
+    
+//     // Convert to Canonical View Volume (CVV) coordinates too:
+//     var x = (xp - canvas.width/2)  / 		// move origin to center of canvas and
+//                  (canvas.width/2);			// normalize canvas to -1 <= x < +1,
+//     var y = (yp - canvas.height/2) /		//										 -1 <= y < +1.
+//                  (canvas.height/2);
+  
+//     // find how far we dragged the mouse:
+//     xMdragTot += (x - xMclik);					// Accumulate change-in-mouse-position,&
+//     yMdragTot += (y - yMclik);
+//     xMclik = x;													// Make next drag-measurement from here.
+//     yMclik = y;
+//   };
+  
+//   function myMouseUp(ev, gl, canvas) {
+//     runStop()
+//     // Create right-handed 'pixel' coords with origin at WebGL canvas LOWER left;
+//     var rect = ev.target.getBoundingClientRect();	// get canvas corners in pixels
+//     var xp = ev.clientX - rect.left;									// x==0 at canvas left edge
+//     var yp = canvas.height - (ev.clientY - rect.top);	// y==0 at canvas bottom edge
+    
+//     // Convert to Canonical View Volume (CVV) coordinates too:
+//     var x = (xp - canvas.width/2)  / 		// move origin to center of canvas and
+//                  (canvas.width/2);			// normalize canvas to -1 <= x < +1,
+//     var y = (yp - canvas.height/2) /		//										 -1 <= y < +1.
+//                  (canvas.height/2);
+
+                 
+//     isDrag = false;											// CLEAR our mouse-dragging flag, and
+//     // accumulate any final bit of mouse-dragging we did:
+//     xMdragTot += (x - xMclik);
+//     yMdragTot += (y - yMclik);
+//     //console.log('myMouseUp: xMdragTot,yMdragTot =',xMdragTot,',\t',yMdragTot);
+//   };
