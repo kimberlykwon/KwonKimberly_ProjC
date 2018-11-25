@@ -39,13 +39,6 @@ var FSHADER_SOURCE =
 // Animation
 var ANGLE_STEP = 45.0;
 
-
-// For VBOs:
-var g_BufID1;										// 1st Vertex Buffer Object ID# sent from GPU
-var g_BufID2;										//  ID# for 2nd VBO.
-var g_BufVerts1;								// # of vertices in our first VBO in the GPU.
-var g_BufVerts2;								// # of vertices in our second VBO in the GPU.
-		//----within VBO1:
 var a_PositionLoc;							// GPU location for 'a_Position' attrib in VBO1
 var a_ColorLoc;									// GPU location ofr 'a_Color' attrib in VBO1
 
@@ -239,6 +232,31 @@ function initVertexBuffer(gl) {
   gl.bindBuffer(gl.ARRAY_BUFFER, null);
 
   return nn;
+}
+
+function initArrayBuffer(gl, attribute, data, type, num){
+    // Create a buffer object
+    var buffer = gl.createBuffer();
+    if (!buffer) {
+      console.log('Failed to create the buffer object');
+      return false;
+    }
+    // Write date into the buffer object
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+    // Assign the buffer object to the attribute variable
+    var a_attribute = gl.getAttribLocation(gl.program, attribute);
+    if (a_attribute < 0) {
+      console.log('Failed to get the storage location of ' + attribute);
+      return false;
+    }
+    gl.vertexAttribPointer(a_attribute, num, type, false, 0, 0);
+    // Enable the assignment of the buffer object to the attribute variable
+    gl.enableVertexAttribArray(a_attribute);
+  
+    gl.bindBuffer(gl.ARRAY_BUFFER, null);
+  
+    return true;
 }
 
 function makeCube() {					 
@@ -708,64 +726,3 @@ function runStop() {
   	ANGLE_STEP = myTmp;
   }
 }
-
-// function myMouseDown(ev, gl, canvas) {  
-//     runStop();
-//   // Create right-handed 'pixel' coords with origin at WebGL canvas LOWER left;
-//     var rect = ev.target.getBoundingClientRect();	// get canvas corners in pixels
-//     var xp = ev.clientX - rect.left;									// x==0 at canvas left edge
-//     var yp = canvas.height - (ev.clientY - rect.top);	// y==0 at canvas bottom edge
-    
-//     // Convert to Canonical View Volume (CVV) coordinates too:
-//     var x = (xp - canvas.width/2)  / 		// move origin to center of canvas and
-//                  (canvas.width/2);			// normalize canvas to -1 <= x < +1,
-//     var y = (yp - canvas.height/2) /		//										 -1 <= y < +1.
-//                  (canvas.height/2);
-    
-//     isDrag = true;											// set our mouse-dragging flag
-//     xMclik = x;													// record where mouse-dragging began
-//     yMclik = y;
-//   };
-  
-  
-//   function myMouseMove(ev, gl, canvas) {  
-//     if(isDrag==false) return;				// IGNORE all mouse-moves except 'dragging'
-  
-//     // Create right-handed 'pixel' coords with origin at WebGL canvas LOWER left;
-//     var rect = ev.target.getBoundingClientRect();	// get canvas corners in pixels
-//     var xp = ev.clientX - rect.left;									// x==0 at canvas left edge
-//     var yp = canvas.height - (ev.clientY - rect.top);	// y==0 at canvas bottom edge
-    
-//     // Convert to Canonical View Volume (CVV) coordinates too:
-//     var x = (xp - canvas.width/2)  / 		// move origin to center of canvas and
-//                  (canvas.width/2);			// normalize canvas to -1 <= x < +1,
-//     var y = (yp - canvas.height/2) /		//										 -1 <= y < +1.
-//                  (canvas.height/2);
-  
-//     // find how far we dragged the mouse:
-//     xMdragTot += (x - xMclik);					// Accumulate change-in-mouse-position,&
-//     yMdragTot += (y - yMclik);
-//     xMclik = x;													// Make next drag-measurement from here.
-//     yMclik = y;
-//   };
-  
-//   function myMouseUp(ev, gl, canvas) {
-//     runStop()
-//     // Create right-handed 'pixel' coords with origin at WebGL canvas LOWER left;
-//     var rect = ev.target.getBoundingClientRect();	// get canvas corners in pixels
-//     var xp = ev.clientX - rect.left;									// x==0 at canvas left edge
-//     var yp = canvas.height - (ev.clientY - rect.top);	// y==0 at canvas bottom edge
-    
-//     // Convert to Canonical View Volume (CVV) coordinates too:
-//     var x = (xp - canvas.width/2)  / 		// move origin to center of canvas and
-//                  (canvas.width/2);			// normalize canvas to -1 <= x < +1,
-//     var y = (yp - canvas.height/2) /		//										 -1 <= y < +1.
-//                  (canvas.height/2);
-
-                 
-//     isDrag = false;											// CLEAR our mouse-dragging flag, and
-//     // accumulate any final bit of mouse-dragging we did:
-//     xMdragTot += (x - xMclik);
-//     yMdragTot += (y - yMclik);
-//     //console.log('myMouseUp: xMdragTot,yMdragTot =',xMdragTot,',\t',yMdragTot);
-//   };
