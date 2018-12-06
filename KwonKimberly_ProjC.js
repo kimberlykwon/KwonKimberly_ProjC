@@ -441,8 +441,7 @@ function keydown(ev, gl) {
       //d
       if (ev.keyCode == 68) { // The left arrow key was pressed
         turn("R");	
-      }
-      
+      } 
       else
       if (ev.keyCode == 88) { // The left arrow key was pressed
         nunchuckAngle += 2.0;		// INCREASED for perspective camera)

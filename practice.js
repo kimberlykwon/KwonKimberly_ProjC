@@ -50,9 +50,6 @@ var g_showBillPhongLighting;
 
 var floatsPerVertex = 7;	
 
-// var mySiz;
-
-
 function main() {
 //==============================================================================
   // Retrieve <canvas> element
