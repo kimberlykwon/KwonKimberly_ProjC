@@ -324,8 +324,8 @@ VBObox0.prototype.draw = function(myGL) {
                   gndVerts.length/floatsPerVertex);		// number of vertices to draw on-screen.
 }
 
-var g_Eye = [6.25, 0.0, 1.25];
-var g_LookAt = [0, 0, 0];
+var g_Eye = [6.25, 0.0, 2.25];
+var g_LookAt = [0, 0, 1];
 var g_Up = [0, 0, 10];
 var x = 0, y = 1, z = 2;
   
