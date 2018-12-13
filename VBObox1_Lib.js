@@ -89,6 +89,8 @@ function VBObox1() {
   //	'  vec3 normal = v_Normal; \n' +
         // Find the unit-length light dir vector 'L' (surface pt --> light):
     'vec3 lightDirection = normalize(u_LampSet[0].pos - v_Position.xyz);\n' +
+    'vec3 headlightDirection = normalize(u_LampSet[1].pos - v_Position.xyz);\n' +
+
     // '  vec3 light2Direction = normalize(u_LampSet[1].pos - v_Position.xyz);\n' +
   
         // Find the unit-length eye-direction vector 'V' (surface pt --> camera)
@@ -98,7 +100,7 @@ function VBObox1() {
         // (look in GLSL manual: what other functions would help?)
         // gives us the cosine-falloff factor needed for the diffuse lighting term:
     'float nDotL = max(dot(lightDirection, normal), 0.0); \n' +
-    'float n2DotL = max(dot(eyeDirection, normal), 0.0); \n' +
+    'float n2DotL = max(dot(headlightDirection, normal), 0.0); \n' +
   
     // '  float nDot2 = max(dot(eyeDirection, normal), 0.0); \n' +
         // The Blinn-Phong lighting model computes the specular term faster 
@@ -107,7 +109,7 @@ function VBObox1() {
         // H = norm(norm(V) + norm(L)).  Note L & V already normalized above.
         // (see http://en.wikipedia.org/wiki/Blinn-Phong_shading_model)
     'vec3 H = normalize(lightDirection + eyeDirection); \n' +
-    'vec3 H2 = normalize(eyeDirection + eyeDirection); \n' +
+    'vec3 H2 = normalize(headlightDirection + eyeDirection); \n' +
   
     'float nDotH = max(dot(H, normal), 0.0); \n' +
     'float n2DotH = max(dot(H2, normal), 0.0); \n' +
@@ -125,6 +127,11 @@ function VBObox1() {
     'vec3 ambient = u_LampSet[0].ambi * u_LampSet[1].ambi * u_MatlSet[0].ambi;\n' +
     'vec3 diffuse = u_LampSet[0].diff * u_LampSet[1].diff * v_Kd * (nDotL + nDotH);\n' +
     'vec3 speculr = u_LampSet[0].spec * u_LampSet[1].spec * u_MatlSet[0].spec * (e64 + e65);\n' +
+    // 'vec3 ambient =  u_LampSet[1].ambi * u_MatlSet[0].ambi;\n' +
+    // 'vec3 diffuse = u_LampSet[1].diff * v_Kd * (n2DotL + n2DotH);\n' +
+    // 'vec3 speculr = u_LampSet[1].spec * u_MatlSet[0].spec * (e65);\n' +
+   
+    
     'gl_FragColor = vec4(emissive + ambient + diffuse + speculr , 1.0);\n' +
   '}\n';
     
@@ -312,12 +319,12 @@ VBObox1.prototype.init = function(myGL) {
 	// (Note: uniform4fv() expects 4-element float32Array as its 2nd argument)
 	
   // Init World-coord. position & colors of first light source in global vars;
-  this.lamp0.I_pos.elements.set( [6.0, 5.0, 5.0]);
+  this.lamp0.I_pos.elements.set( [2.0, 5.0, 5.0]);
   this.lamp0.I_ambi.elements.set([0.4, 0.4, 0.4]);
   this.lamp0.I_diff.elements.set([1.0, 1.0, 1.0]);
 	this.lamp0.I_spec.elements.set([1.0, 1.0, 1.0]);
 	
-	this.lamp1.I_pos.elements.set( g_Eye);
+	this.lamp1.I_pos.elements.set( [g_Eye[x] + g_LookAt[x], g_Eye[y] + g_LookAt[y], g_Eye[z] + g_LookAt[z]]);
   this.lamp1.I_ambi.elements.set([0.4, 0.4, 0.4]);
   this.lamp1.I_diff.elements.set([1.0, 1.0, 1.0]);
   this.lamp1.I_spec.elements.set([1.0, 1.0, 1.0]);
@@ -365,6 +372,9 @@ VBObox1.prototype.adjust = function(myGL) {
                         false, 
                         this.mvpMatrix.elements);
 
+  this.lamp1.I_pos.elements.set( [g_Eye[x] + g_LookAt[x], g_Eye[y] + g_LookAt[y], g_Eye[z] + g_LookAt[z]]);
+
+
 //   //---------------For the light source(s):
 //   gl.uniform3fv(lamp0.u_pos,  lamp0.I_pos.elements.slice(0,3));
 //   //		 ('slice(0,3) member func returns elements 0,1,2 (x,y,z) ) 
@@ -404,6 +414,11 @@ VBObox1.prototype.draw = function(myGL) {
   // draw sphere
   pushMatrix(this.modelMatrix);
 
+  this.modelMatrix.rotate(currentAngle, 0.0, 0.0);
+
+  // this.modelMatrix.setRotate(currentAngle, 0, 1, 0); // Rotate around the y-axis
+
+
   //---------------For the light source(s):
   myGL.uniform3fv(this.lamp0.u_pos,  this.lamp0.I_pos.elements.slice(0,3));
   //		 ('slice(0,3) member func returns elements 0,1,2 (x,y,z) ) 
@@ -411,6 +426,7 @@ VBObox1.prototype.draw = function(myGL) {
   myGL.uniform3fv(this.lamp0.u_diff, this.lamp0.I_diff.elements);		// diffuse
   myGL.uniform3fv(this.lamp0.u_spec, this.lamp0.I_spec.elements);		// Specular
   
+  console.log(this.lamp1.I_pos.elements);
   myGL.uniform3fv(this.lamp1.u_pos,  this.lamp1.I_pos.elements.slice(0,3));
   //		 ('slice(0,3) member func returns elements 0,1,2 (x,y,z) ) 
   myGL.uniform3fv(this.lamp1.u_ambi, this.lamp1.I_ambi.elements);		// ambient

@@ -23,6 +23,8 @@ var g_show0 = 1;								// 0==Show, 1==Hide VBO0 contents on-screen.
 var g_show1 = 1;								// 	"					"			VBO1		"				"				" 
 
 var ANGLE_STEP = 25.0;		// Rotation angle rate (degrees/second)
+var currentAngle;
+
 
 function main() {
 //=============================================================================
