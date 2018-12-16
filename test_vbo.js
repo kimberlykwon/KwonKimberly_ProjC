@@ -23,7 +23,12 @@ var g_show0 = 1;								// 0==Show, 1==Hide VBO0 contents on-screen.
 var g_show1 = 1;								// 	"					"			VBO1		"				"				" 
 
 var ANGLE_STEP = 25.0;		// Rotation angle rate (degrees/second)
-var currentAngle;
+var sphereAngle;
+var objectAngle;
+
+var headlightOn = true;
+var phongLighting = true;
+var phongShading = true;
 
 
 function main() {
@@ -51,26 +56,41 @@ function main() {
 
   gl.clearColor(0.0, 0.0, 0.0, 1.0);	  // RGBA color for clearing <canvas>
   
-  currentAngle = 0.0;
+  sphereAngle = 0.0;
+  objectAngle = 0.0;
 
   var tick = function() {			// define our self-calling animation function:
-    currentAngle = animate(currentAngle);  // Update the rotation angle
+    elapsed = animate();  // Update the rotation angle
+    sphereAngle = animateSphere(sphereAngle, elapsed);
+    objectAngle = animateObject(objectAngle, elapsed);
     masterDraw(); // Draw the triangle
     requestAnimationFrame(tick, g_canvasID); // browser request: ?call tick fcn
   };
   tick();
 }
 
-function animate(angle) {
+function animate() {
   //==============================================================================
     // Calculate the elapsed time
     var now = Date.now();
     var elapsed = now - g_last;
     g_last = now;
+
+    return elapsed;
+}
+
+function animateSphere(angle, elapsed){
+  var newAngle = angle + (ANGLE_STEP * elapsed) / 1000.0;
+  return newAngle %= 360;
+}
+
+function animateObject(angle, elapsed) {
+    if(angle >   20.0 && ANGLE_STEP > 0) ANGLE_STEP = -ANGLE_STEP;
+    if(angle <  -85.0 && ANGLE_STEP < 0) ANGLE_STEP = -ANGLE_STEP;
   
     var newAngle = angle + (ANGLE_STEP * elapsed) / 1000.0;
     return newAngle %= 360;
-}
+  }
 
 function masterDraw() {
 //=============================================================================
@@ -142,6 +162,30 @@ function keydown(ev, gl) {
       //d
       if (ev.keyCode == 68) { // The left arrow key was pressed
         turn("R");	
+      }
+
+      if (ev.keyCode == 90) {
+        if(headlightOn){
+          headlightOn = false;
+        } else {
+          headlightOn = true;
+        }
+      }
+
+      if (ev.keyCode == 88){
+        if (phongLighting){
+          phongLighting = false;
+        } else {
+          phongLighting = true;
+        }
+      }
+
+      if (ev.keyCode == 67){
+        if (phongShading){
+          phongShading = false;
+        } else {
+          phongShading = true;
+        }
       }
       masterDraw(gl);    
   }

@@ -19,41 +19,65 @@ function VBObox1() {
 	'		int shiny;\n' +			// Kshiny: specular exponent (integer >= 1; typ. <200)
   '		};\n' +
   
-
+	'struct LampT {\n' +		// Describes one point-like Phong light source
+	'		vec3 pos;\n' +			// (x,y,z,w); w==1.0 for local light at x,y,z position
+													//		   w==0.0 for distant light from x,y,z direction 
+	' 	vec3 ambi;\n' +			// Ia ==  ambient light source strength (r,g,b)
+	' 	vec3 diff;\n' +			// Id ==  diffuse light source strength (r,g,b)
+	'		vec3 spec;\n' +			// Is == specular light source strength (r,g,b)
+  '}; \n' +
+  
   'uniform mat4 u_MvpMatrix;\n' +
   'uniform mat4 u_ModelMatrix;\n' +
   'uniform mat4 u_NormalMatrix;\n' +
+
   'uniform MatlT u_MatlSet[1];\n' +		// Array of all materials.
+  'uniform LampT u_LampSet[2];\n' +		// Array of all light sources.
+
+  'uniform bool u_headlightOn;\n' +
+  'uniform bool u_phongShading;\n' +
+  'uniform bool u_phongLighting;\n' +
+
   'attribute vec4 a_Normal;\n' +
   'attribute vec4 a_Position;\n' +
+  'attribute vec4 a_Color;\n' + 
+
   'varying vec4 v_Position;\n' +
   'varying vec3 v_Normal;\n' +
-  'varying vec3 v_Kd; \n' +							// Phong Lighting: diffuse reflectance
+  'varying vec4 v_Color;\n' +
+  'varying vec3 v_Kd;\n' +							// Phong Lighting: diffuse reflectance
+
   'void main() {\n' +
   '  gl_Position = u_MvpMatrix * a_Position;\n' +
   '  v_Normal = normalize(vec3(u_NormalMatrix * a_Normal));\n' +      // Calculate a normal to be fit with a model matrix, and make it 1.0 in length
   '  v_Position = u_ModelMatrix * a_Position;\n' +
-  // '  gl_PointSize = 10.0;\n' +
-  // Calculate the light direction and make it 1.0 in length
-  // '  vec3 lightDirection = normalize(u_LightPosition - vec3(v_Position));\n' +
-  // The dot product of the light direction and the normal
-  // '  float nDotL = max(dot(lightDirection, normal), 0.0);\n' +
-  // // Calculate the color due to diffuse reflection
-  // '  vec3 diffuse = u_LightColor * a_Color.rgb * nDotL;\n' +
-  // // Calculate the color due to ambient reflection
-  // '  vec3 ambient = u_AmbientLight * a_Color.rgb;\n' +
-  // // Add the surface colors due to diffuse reflection and ambient reflection
-  // '  v_Color = vec4(diffuse + ambient, a_Color.a);\n' + 
-  ' v_Kd = u_MatlSet[0].diff;\n' + 
+  '  if (u_phongShading == false){' +
+  '     gl_PointSize = 10.0;\n' +
+  '     vec3 temp_color = vec3(0,0,0);\n' +
+  '     for(int j=0; j<2; j++){' +
+  //Calculate the light direction and make it 1.0 in length
+  '       if(j==1 && u_headlightOn || j==0){\n' +
+  '         vec3 lightDirection = normalize(u_LampSet[j].pos - vec3(v_Position));\n' +
+  //The dot product of the light direction and the normal
+  '         float nDotL = max(dot(lightDirection, v_Normal), 0.0);\n' +
+  // Calculate the color due to diffuse reflection
+  '         vec3 diffuse = u_LampSet[j].diff * a_Color.rgb * nDotL;\n' +
+  // Calculate the color due to ambient reflection
+  '         vec3 ambient = u_LampSet[j].ambi * a_Color.rgb;\n' +
+  // Add the surface colors due to diffuse reflection and ambient reflection
+  '         temp_color += diffuse + ambient;\n' + 
+  '       }\n' +
+  '     }\n' +
+  '     v_Color = vec4(temp_color, a_Color.a);\n' +
+  '   }\n' + 
+  ' else{\n' +
+  ' v_Kd = u_MatlSet[0].diff;}\n' + 
   '}\n';
 
   this.FRAG_SRC = //---------------------- FRAGMENT SHADER source code 
   'precision highp float;\n' +
   'precision highp int;\n' +
-  // 'varying vec4 v_Color;\n' +
-  // 'uniform vec3 u_LightColor;\n' +     // Light color
-  // 'uniform vec3 u_LightPosition;\n' +  // Position of the light source
-  // 'uniform vec3 u_AmbientLight;\n' +   // Ambient light color
+
   	//--------------- GLSL Struct Definitions:
 	'struct LampT {\n' +		// Describes one point-like Phong light source
 	'		vec3 pos;\n' +			// (x,y,z,w); w==1.0 for local light at x,y,z position
@@ -75,64 +99,61 @@ function VBObox1() {
 	'uniform LampT u_LampSet[2];\n' +		// Array of all light sources.
 	'uniform MatlT u_MatlSet[1];\n' +		// Array of all materials.
   'uniform vec3 u_eyePosWorld;\n' + 	// Camera/eye location in world coords.
+  'uniform bool u_phongShading;\n' + 
+  'uniform bool u_phongLighting;\n' + 
+  'uniform bool u_headlightOn;\n' +
   
  	//-------------VARYING:Vertex Shader values sent per-pixel to Fragment shader: 
   'varying vec3 v_Normal;\n' +				// Find 3D surface normal at each pix
   'varying vec4 v_Position;\n' +			// pixel's 3D pos too -- in 'world' coords
   'varying vec3 v_Kd;\n' +						// Find diffuse reflectance K_d per pix
+  'varying vec4 v_Color;\n' + 
   													// Ambient? Emissive? Specular? almost
   													// NEVER change per-vertex: I use 'uniform' values
   'void main() { \n' +
         // Normalize! !!IMPORTANT!! TROUBLE if you don't! 
         // normals interpolated for each pixel aren't 1.0 in length any more!
-    'vec3 normal = normalize(v_Normal); \n' +
-  //	'  vec3 normal = v_Normal; \n' +
-        // Find the unit-length light dir vector 'L' (surface pt --> light):
-    'vec3 lightDirection = normalize(u_LampSet[0].pos - v_Position.xyz);\n' +
-    'vec3 headlightDirection = normalize(u_LampSet[1].pos - v_Position.xyz);\n' +
-
-    // '  vec3 light2Direction = normalize(u_LampSet[1].pos - v_Position.xyz);\n' +
-  
-        // Find the unit-length eye-direction vector 'V' (surface pt --> camera)
-    'vec3 eyeDirection = normalize(u_eyePosWorld - v_Position.xyz); \n' +
-        // The dot product of (unit-length) light direction and the normal vector
-        // (use max() to discard any negatives from lights below the surface) 
-        // (look in GLSL manual: what other functions would help?)
-        // gives us the cosine-falloff factor needed for the diffuse lighting term:
-    'float nDotL = max(dot(lightDirection, normal), 0.0); \n' +
-    'float n2DotL = max(dot(headlightDirection, normal), 0.0); \n' +
-  
-    // '  float nDot2 = max(dot(eyeDirection, normal), 0.0); \n' +
-        // The Blinn-Phong lighting model computes the specular term faster 
-        // because it replaces the (V*R)^shiny weighting with (H*N)^shiny,
-        // where 'halfway' vector H has a direction half-way between L and V
-        // H = norm(norm(V) + norm(L)).  Note L & V already normalized above.
-        // (see http://en.wikipedia.org/wiki/Blinn-Phong_shading_model)
-    'vec3 H = normalize(lightDirection + eyeDirection); \n' +
-    'vec3 H2 = normalize(headlightDirection + eyeDirection); \n' +
-  
-    'float nDotH = max(dot(H, normal), 0.0); \n' +
-    'float n2DotH = max(dot(H2, normal), 0.0); \n' +
-  
-        // (use max() to discard any negatives from lights below the surface)
-        // Apply the 'shininess' exponent K_e:
-        // Try it two different ways:		The 'new hotness': pow() fcn in GLSL.
-        // CAREFUL!  pow() won't accept integer exponents! Convert K_shiny!  
-    'float e64 = pow(nDotH, float(u_MatlSet[0].shiny));\n' +
-    'float e65 = pow(n2DotH, float(u_MatlSet[0].shiny));\n' +
-  
-    // Calculate the final color from diffuse reflection and ambient reflection
-  //  '	 vec3 emissive = u_Ke;' +
-    'vec3 emissive = 										u_MatlSet[0].emit;\n' +
-    'vec3 ambient = u_LampSet[0].ambi * u_LampSet[1].ambi * u_MatlSet[0].ambi;\n' +
-    'vec3 diffuse = u_LampSet[0].diff * u_LampSet[1].diff * v_Kd * (nDotL + nDotH);\n' +
-    'vec3 speculr = u_LampSet[0].spec * u_LampSet[1].spec * u_MatlSet[0].spec * (e64 + e65);\n' +
-    // 'vec3 ambient =  u_LampSet[1].ambi * u_MatlSet[0].ambi;\n' +
-    // 'vec3 diffuse = u_LampSet[1].diff * v_Kd * (n2DotL + n2DotH);\n' +
-    // 'vec3 speculr = u_LampSet[1].spec * u_MatlSet[0].spec * (e65);\n' +
-   
-    
-    'gl_FragColor = vec4(emissive + ambient + diffuse + speculr , 1.0);\n' +
+    'if (u_phongShading){' + 
+      'vec3 normal = normalize(v_Normal); \n' +
+      'vec3 eyeDirection = normalize(u_eyePosWorld - v_Position.xyz); \n' +
+      'gl_FragColor = vec4(0,0,0,0);\n' +
+      'for (int j=0; j<2; j++){\n' +
+      'if(j==1 && u_headlightOn || j==0){\n' +
+        'vec3 lightDirection = normalize(u_LampSet[j].pos - v_Position.xyz);\n' +
+        // 'float nDotL = 0.0;\n' +
+        'if (u_phongLighting){\n' +
+          'vec3 H = vec3(0,0,0);\n' +
+          'if (j == 0){\n' +
+            'H = normalize(lightDirection + eyeDirection);\n' +
+          '} else {\n' +
+            'H = eyeDirection; \n' +
+          '} \n' +
+          'float nDotH = max(dot(H, normal), 0.0); \n' +
+          'float e64 = pow(nDotH, float(u_MatlSet[0].shiny));\n' +
+          'float nDotL = max(dot(lightDirection, normal), 0.0); \n' +
+          'vec3 emissive = 										u_MatlSet[0].emit;\n' +
+          'vec3 ambient = u_LampSet[j].ambi * u_MatlSet[0].ambi;\n' +
+          'vec3 diffuse = u_LampSet[j].diff * v_Kd * (nDotL + nDotH);\n' +
+          'vec3 speculr = u_LampSet[j].spec * u_MatlSet[0].spec * e64;\n' +
+          'gl_FragColor += vec4(emissive + ambient + diffuse + speculr , 1.0);\n' +
+        '} else {\n' +
+          'float nDotL = max(dot(lightDirection, normal), 0.0); \n' +
+          'vec3 reflectDirection = nDotL * 2.0 * normal - lightDirection;\n' +
+          'float rDotV = max(dot(reflectDirection, eyeDirection), 0.0); \n' +
+          'float e64 = pow(rDotV, float(u_MatlSet[0].shiny));\n' +
+          'vec3 emissive = 										u_MatlSet[0].emit;\n' +
+          'vec3 ambient = u_LampSet[j].ambi * u_MatlSet[0].ambi;\n' +
+          'vec3 diffuse = u_LampSet[j].diff * v_Kd * nDotL;\n' +
+          'vec3 speculr = u_LampSet[j].spec * u_MatlSet[0].spec * e64;\n' +
+          'gl_FragColor += vec4(emissive + ambient + diffuse + speculr , 1.0);\n' +
+        '}\n' +
+      '}\n' + 
+      '}\n' +
+    '}\n' +
+    'else {\n' +
+    ' gl_FragColor = v_Color;\n' +
+    '}\n' +
+                                                                        
   '}\n';
     
                                   // bytes req'd for 1 vboContents array element;                                // (why? used to compute stride and offset 
@@ -147,8 +168,14 @@ function VBObox1() {
   this.lamp1 = new LightsT();
 
 	// ... for our first material:
-  this.matlSel= MATL_RED_PLASTIC;				// see keypress(): 'm' key changes matlSel
-  this.matl0 = new Material(this.matlSel);	
+  var matlSel= MATL_RED_PLASTIC;				// see keypress(): 'm' key changes matlSel
+  var matlSel2 = MATL_JADE;
+  var matlSel3 = MATL_PEARL;
+  var matlSel4 = MATL_OBSIDIAN;
+  this.matl0 = new Material(matlSel);	
+  this.matl1 = new Material(matlSel2);
+  this.matl2 = new Material(matlSel3);
+  this.matl3 = new Material(matlSel4);
 }
 
 
@@ -188,7 +215,7 @@ VBObox1.prototype.makeSphere = function(myGL) {
   var p1, p2;
 
   var positions = [];
-  // var colors = [];
+  var colors = [];
   var indices = [];
 
 
@@ -205,9 +232,9 @@ VBObox1.prototype.makeSphere = function(myGL) {
       positions.push(si * sj);  // X
       positions.push(cj);       // Y
       positions.push(ci * sj);  // Z
-      // colors.push(0.2);
-      // colors.push(1.0);
-      // colors.push(0.2);
+      colors.push(1.0);
+      colors.push(0.0);
+      colors.push(0.0);
     }
   }
 
@@ -231,7 +258,7 @@ VBObox1.prototype.makeSphere = function(myGL) {
   // Same data can be used for vertex and normal
   // In order to make it intelligible, another buffer is prepared separately
   if (!this.initArrayBuffer(myGL, 'a_Position', new Float32Array(positions), myGL.FLOAT, 3)) return -1;
-  // if (!this.initArrayBuffer(myGL, 'a_Color', new Float32Array(colors), myGL.FLOAT,3)) return -1;
+  if (!this.initArrayBuffer(myGL, 'a_Color', new Float32Array(colors), myGL.FLOAT,3)) return -1;
   if (!this.initArrayBuffer(myGL, 'a_Normal', new Float32Array(positions), myGL.FLOAT, 3))  return -1;
 
   // Unbind the buffer object
@@ -313,7 +340,7 @@ VBObox1.prototype.init = function(myGL) {
 	}
 
 
-  this.uLoc_eyePosWorld  = gl.getUniformLocation(myGL.program, 'u_eyePosWorld');
+  this.uLoc_eyePosWorld  = myGL.getUniformLocation(myGL.program, 'u_eyePosWorld');
 	// Position the camera in world coordinates:
 	myGL.uniform3fv(this.uLoc_eyePosWorld, g_Eye);// use it to set our uniform
 	// (Note: uniform4fv() expects 4-element float32Array as its 2nd argument)
@@ -321,13 +348,52 @@ VBObox1.prototype.init = function(myGL) {
   // Init World-coord. position & colors of first light source in global vars;
   this.lamp0.I_pos.elements.set( [2.0, 5.0, 5.0]);
   this.lamp0.I_ambi.elements.set([0.4, 0.4, 0.4]);
-  this.lamp0.I_diff.elements.set([1.0, 1.0, 1.0]);
+  this.lamp0.I_diff.elements.set([0.7, 0.7, 0.7]);
 	this.lamp0.I_spec.elements.set([1.0, 1.0, 1.0]);
 	
-	this.lamp1.I_pos.elements.set( [g_Eye[x] + g_LookAt[x], g_Eye[y] + g_LookAt[y], g_Eye[z] + g_LookAt[z]]);
+	this.lamp1.I_pos.elements.set(g_Eye);
   this.lamp1.I_ambi.elements.set([0.4, 0.4, 0.4]);
-  this.lamp1.I_diff.elements.set([1.0, 1.0, 1.0]);
+  this.lamp1.I_diff.elements.set([0.5, 0.5, 0.5]);
   this.lamp1.I_spec.elements.set([1.0, 1.0, 1.0]);
+
+    //---------------For the light source(s):
+    myGL.uniform3fv(this.lamp0.u_pos,  this.lamp0.I_pos.elements.slice(0,3));
+    //		 ('slice(0,3) member func returns elements 0,1,2 (x,y,z) ) 
+    myGL.uniform3fv(this.lamp0.u_ambi, this.lamp0.I_ambi.elements);		// ambient
+    myGL.uniform3fv(this.lamp0.u_diff, this.lamp0.I_diff.elements);		// diffuse
+    myGL.uniform3fv(this.lamp0.u_spec, this.lamp0.I_spec.elements);		// Specular
+    
+    console.log(this.lamp1.I_pos.elements);
+    myGL.uniform3fv(this.lamp1.u_pos,  this.lamp1.I_pos.elements.slice(0,3));
+    myGL.uniform3fv(this.lamp1.u_ambi, this.lamp1.I_ambi.elements);		// ambient
+    myGL.uniform3fv(this.lamp1.u_diff, this.lamp1.I_diff.elements);		// diffuse
+    myGL.uniform3fv(this.lamp1.u_spec, this.lamp1.I_spec.elements);		// Specular
+    //	console.log('this.lamp0.u_pos',this.lamp0.u_pos,'\n' );
+    //	console.log('this.lamp0.I_diff.elements', this.lamp0.I_diff.elements, '\n');
+  
+    //---------------For the Material object(s):
+    myGL.uniform3fv(this.matl0.uLoc_Ke, this.matl0.K_emit.slice(0,3));				// Ke emissive
+    myGL.uniform3fv(this.matl0.uLoc_Ka, this.matl0.K_ambi.slice(0,3));				// Ka ambient
+    myGL.uniform3fv(this.matl0.uLoc_Kd, this.matl0.K_diff.slice(0,3));				// Kd	diffuse
+    myGL.uniform3fv(this.matl0.uLoc_Ks, this.matl0.K_spec.slice(0,3));				// Ks specular
+    myGL.uniform1i(this.matl0.uLoc_Kshiny, parseInt(this.matl0.K_shiny, 10));     // Kshiny 
+
+//   var headlightOn = true;
+// var phongLighting = true;
+// var phongShading = true;
+  // pass shader booleans 
+  this.u_phongShading = myGL.getUniformLocation(myGL.program, 'u_phongShading');
+  this.u_phongLighting = myGL.getUniformLocation(myGL.program, 'u_phongLighting');
+  this.u_headlightOn = myGL.getUniformLocation(myGL.program, 'u_headlightOn');
+  if(!this.u_phongLighting || !this.u_phongLighting || !this.u_headlightOn){
+    console.log('Faled to get boolean shader type storage locations');
+    return;
+  }
+
+  // Pass booleans to shaders
+  myGL.uniform1i(this.u_phongLighting, phongLighting);
+  myGL.uniform1i(this.u_phongShading, phongShading);
+  myGL.uniform1i(this.u_headlightOn, headlightOn);
 
   // Pass the model matrix to u_ModelMatrix
   myGL.uniformMatrix4fv(this.u_ModelMatrix, false, this.modelMatrix.elements);
@@ -372,30 +438,15 @@ VBObox1.prototype.adjust = function(myGL) {
                         false, 
                         this.mvpMatrix.elements);
 
-  this.lamp1.I_pos.elements.set( [g_Eye[x] + g_LookAt[x], g_Eye[y] + g_LookAt[y], g_Eye[z] + g_LookAt[z]]);
+  this.lamp1.I_pos.elements.set(g_Eye);
 
+    // Pass booleans to shaders
+    myGL.uniform1i(this.u_phongLighting, phongLighting);
+    myGL.uniform1i(this.u_phongShading, phongShading);
+    myGL.uniform1i(this.u_headlightOn, headlightOn);
 
-//   //---------------For the light source(s):
-//   gl.uniform3fv(lamp0.u_pos,  lamp0.I_pos.elements.slice(0,3));
-//   //		 ('slice(0,3) member func returns elements 0,1,2 (x,y,z) ) 
-//   gl.uniform3fv(lamp0.u_ambi, lamp0.I_ambi.elements);		// ambient
-//   gl.uniform3fv(lamp0.u_diff, lamp0.I_diff.elements);		// diffuse
-//   gl.uniform3fv(lamp0.u_spec, lamp0.I_spec.elements);		// Specular
-  
-//   gl.uniform3fv(lamp1.u_pos,  lamp1.I_pos.elements.slice(0,3));
-//   //		 ('slice(0,3) member func returns elements 0,1,2 (x,y,z) ) 
-//   gl.uniform3fv(lamp1.u_ambi, lamp1.I_ambi.elements);		// ambient
-//   gl.uniform3fv(lamp1.u_diff, lamp1.I_diff.elements);		// diffuse
-//   gl.uniform3fv(lamp1.u_spec, lamp1.I_spec.elements);		// Specular
-// //	console.log('lamp0.u_pos',lamp0.u_pos,'\n' );
-// //	console.log('lamp0.I_diff.elements', lamp0.I_diff.elements, '\n');
+    myGL.uniform3fv(this.uLoc_eyePosWorld, g_Eye);// use it to set our uniform
 
-//   //---------------For the Material object(s):
-//   gl.uniform3fv(matl0.uLoc_Ke, matl0.K_emit.slice(0,3));				// Ke emissive
-//   gl.uniform3fv(matl0.uLoc_Ka, matl0.K_ambi.slice(0,3));				// Ka ambient
-//   gl.uniform3fv(matl0.uLoc_Kd, matl0.K_diff.slice(0,3));				// Kd	diffuse
-//   gl.uniform3fv(matl0.uLoc_Ks, matl0.K_spec.slice(0,3));				// Ks specular
-//   gl.uniform1i(matl0.uLoc_Kshiny, parseInt(matl0.K_shiny, 10));     // Kshiny 
 }
 
 VBObox1.prototype.draw = function(myGL) {
@@ -414,37 +465,12 @@ VBObox1.prototype.draw = function(myGL) {
   // draw sphere
   pushMatrix(this.modelMatrix);
 
-  this.modelMatrix.rotate(currentAngle, 0.0, 0.0);
+  this.modelMatrix.translate(0.0, 0.0, 2.0);
 
-  // this.modelMatrix.setRotate(currentAngle, 0, 1, 0); // Rotate around the y-axis
+  // this.modelMatrix.scale(0.5,0.5,0.5);
 
+  this.modelMatrix.rotate(sphereAngle, 0.0, 0.0);
 
-  //---------------For the light source(s):
-  myGL.uniform3fv(this.lamp0.u_pos,  this.lamp0.I_pos.elements.slice(0,3));
-  //		 ('slice(0,3) member func returns elements 0,1,2 (x,y,z) ) 
-  myGL.uniform3fv(this.lamp0.u_ambi, this.lamp0.I_ambi.elements);		// ambient
-  myGL.uniform3fv(this.lamp0.u_diff, this.lamp0.I_diff.elements);		// diffuse
-  myGL.uniform3fv(this.lamp0.u_spec, this.lamp0.I_spec.elements);		// Specular
-  
-  console.log(this.lamp1.I_pos.elements);
-  myGL.uniform3fv(this.lamp1.u_pos,  this.lamp1.I_pos.elements.slice(0,3));
-  //		 ('slice(0,3) member func returns elements 0,1,2 (x,y,z) ) 
-  myGL.uniform3fv(this.lamp1.u_ambi, this.lamp1.I_ambi.elements);		// ambient
-  myGL.uniform3fv(this.lamp1.u_diff, this.lamp1.I_diff.elements);		// diffuse
-  myGL.uniform3fv(this.lamp1.u_spec, this.lamp1.I_spec.elements);		// Specular
-  //	console.log('this.lamp0.u_pos',this.lamp0.u_pos,'\n' );
-  //	console.log('this.lamp0.I_diff.elements', this.lamp0.I_diff.elements, '\n');
-
-  //---------------For the Material object(s):
-  myGL.uniform3fv(this.matl0.uLoc_Ke, this.matl0.K_emit.slice(0,3));				// Ke emissive
-  myGL.uniform3fv(this.matl0.uLoc_Ka, this.matl0.K_ambi.slice(0,3));				// Ka ambient
-  myGL.uniform3fv(this.matl0.uLoc_Kd, this.matl0.K_diff.slice(0,3));				// Kd	diffuse
-  myGL.uniform3fv(this.matl0.uLoc_Ks, this.matl0.K_spec.slice(0,3));				// Ks specular
-  myGL.uniform1i(this.matl0.uLoc_Kshiny, parseInt(this.matl0.K_shiny, 10));     // Kshiny 
-
-  this.modelMatrix.translate(0.0, 0.0, 1.0);
-
-  this.modelMatrix.scale(0.5,0.5,0.5);
 
   // Calculate the model matrix
   // modelMatrix.setRotate(currentAnmyGLe, 0, 1, 0); // Rotate around the y-axis
@@ -463,11 +489,82 @@ VBObox1.prototype.draw = function(myGL) {
   myGL.uniformMatrix4fv(this.u_MvpMatrix, false, this.mvpMatrix.elements);
 
 
+  //---------------For the Material object(s):
+  myGL.uniform3fv(this.matl0.uLoc_Ke, this.matl0.K_emit.slice(0,3));				// Ke emissive
+  myGL.uniform3fv(this.matl0.uLoc_Ka, this.matl0.K_ambi.slice(0,3));				// Ka ambient
+  myGL.uniform3fv(this.matl0.uLoc_Kd, this.matl0.K_diff.slice(0,3));				// Kd	diffuse
+  myGL.uniform3fv(this.matl0.uLoc_Ks, this.matl0.K_spec.slice(0,3));				// Ks specular
+  myGL.uniform1i(this.matl0.uLoc_Kshiny, parseInt(this.matl0.K_shiny, 10));  
+
   // Now, using these drawing axes, draw our ground plane: 
   myGL.drawElements(myGL.TRIANGLES,							// use this drawing primitive, and
                 this.mySiz,	// start at this vertex number, and
                 myGL.UNSIGNED_SHORT,
                 0);		// draw this many vertices
+
+  this.modelMatrix = popMatrix();
+
+  //---------------For the Material object(s):
+  myGL.uniform3fv(this.matl0.uLoc_Ke, this.matl1.K_emit.slice(0,3));				// Ke emissive
+  myGL.uniform3fv(this.matl0.uLoc_Ka, this.matl1.K_ambi.slice(0,3));				// Ka ambient
+  myGL.uniform3fv(this.matl0.uLoc_Kd, this.matl1.K_diff.slice(0,3));				// Kd	diffuse
+  myGL.uniform3fv(this.matl0.uLoc_Ks, this.matl1.K_spec.slice(0,3));				// Ks specular
+  myGL.uniform1i(this.matl0.uLoc_Kshiny, parseInt(this.matl1.K_shiny, 10));     // Kshiny 
+
+  this.drawSpheres(myGL, 0.0, 5.0, 1.0);
+  //---------------For the Material object(s):
+  myGL.uniform3fv(this.matl0.uLoc_Ke, this.matl2.K_emit.slice(0,3));				// Ke emissive
+  myGL.uniform3fv(this.matl0.uLoc_Ka, this.matl2.K_ambi.slice(0,3));				// Ka ambient
+  myGL.uniform3fv(this.matl0.uLoc_Kd, this.matl2.K_diff.slice(0,3));				// Kd	diffuse
+  myGL.uniform3fv(this.matl0.uLoc_Ks, this.matl2.K_spec.slice(0,3));				// Ks specular
+  myGL.uniform1i(this.matl0.uLoc_Kshiny, parseInt(this.matl2.K_shiny, 10));     // Kshiny 
+
+  this.drawSpheres(myGL, 0.0, -5.0, 1.0);
+  //---------------For the Material object(s):
+  myGL.uniform3fv(this.matl0.uLoc_Ke, this.matl3.K_emit.slice(0,3));				// Ke emissive
+  myGL.uniform3fv(this.matl0.uLoc_Ka, this.matl3.K_ambi.slice(0,3));				// Ka ambient
+  myGL.uniform3fv(this.matl0.uLoc_Kd, this.matl3.K_diff.slice(0,3));				// Kd	diffuse
+  myGL.uniform3fv(this.matl0.uLoc_Ks, this.matl3.K_spec.slice(0,3));				// Ks specular
+  myGL.uniform1i(this.matl0.uLoc_Kshiny, parseInt(this.matl3.K_shiny, 10));     // Kshiny 
+
+  this.drawSpheres(myGL, -5.0, 0.0, 1.0);
+
+}
+
+
+VBObox1.prototype.drawSpheres = function(myGL, x, y, z) {
+  pushMatrix(this.modelMatrix);
+
+  this.modelMatrix.scale(0.5, 0.5, 0.5);
+
+  this.modelMatrix.translate(x, y, z);
+
+  this.modelMatrix.rotate(-90.0, 0, 1, 0);
+
+  for (var j=0; j<5; j++){
+    this.modelMatrix.rotate(objectAngle*0.4, 0, 1, 0);  // Spin on XY diagonal axis
+    this.modelMatrix.translate(2.0, 0.0, 0.0);
+    // Calculate the model matrix
+    // modelMatrix.setRotate(currentAnmyGLe, 0, 1, 0); // Rotate around the y-axis
+    // Pass the model matrix to u_ModelMatrix
+    myGL.uniformMatrix4fv(this.u_ModelMatrix, false, this.modelMatrix.elements);
+
+    // Pass the model view projection matrix to u_MvpMatrix
+    this.mvpMatrix.set(g_vpMatrix).multiply(this.modelMatrix);
+    myGL.uniformMatrix4fv(this.u_MvpMatrix, false, this.mvpMatrix.elements);
+
+    // Pass the matrix to transform the normal based on the model matrix to u_NormalMatrix
+    this.normalMatrix.setInverseOf(this.modelMatrix);
+    this.normalMatrix.transpose();
+    myGL.uniformMatrix4fv(this.u_NormalMatrix, false, this.normalMatrix.elements);
+
+    myGL.uniformMatrix4fv(this.u_MvpMatrix, false, this.mvpMatrix.elements);
+    
+    myGL.drawElements(myGL.TRIANGLES,							// use this drawing primitive, and
+      this.mySiz,	// start at this vertex number, and
+      myGL.UNSIGNED_SHORT,
+      0);		// draw this many vertices
+  }
 
   this.modelMatrix = popMatrix();
 }
