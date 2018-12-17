@@ -26,6 +26,7 @@ var ANGLE_STEP = 25.0;		// Rotation angle rate (degrees/second)
 var sphereAngle;
 var objectAngle;
 
+var lightOn = true;
 var headlightOn = true;
 var phongLighting = true;
 var phongShading = true;
@@ -164,30 +165,47 @@ function keydown(ev, gl) {
         turn("R");	
       }
 
+      //z
       if (ev.keyCode == 90) {
         if(headlightOn){
           headlightOn = false;
+          console.log("Headlight turned off");
         } else {
           headlightOn = true;
+          console.log("Headlight turned on");
         }
       }
-
+      // x
       if (ev.keyCode == 88){
+        if (lightOn){
+          lightOn = false;
+          console.log("Secondary light turned off");
+        } else {
+          lightOn = true;
+          console.log("Secondary light turned on");
+        }
+      }
+      //c
+      if (ev.keyCode == 67){
         if (phongLighting){
           phongLighting = false;
+          console.log("Using Blinn-Phong Lighting");
         } else {
           phongLighting = true;
+          console.log("Using Phong Lighting");
         }
       }
-
-      if (ev.keyCode == 67){
+      //v
+      if (ev.keyCode == 86){
         if (phongShading){
           phongShading = false;
+          console.log("Using Gouroud Shading");
         } else {
           phongShading = true;
+          console.log("Using Phong Shading");
         }
       }
-      masterDraw(gl);    
+      masterDraw(gl);  
   }
 
 

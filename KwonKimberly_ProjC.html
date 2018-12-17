@@ -19,26 +19,45 @@
         &emsp;
         &emsp;
         &emsp;
-       light world-space position       &emsp;
+        &emsp;
+        &emsp;
+        &emsp;
+        &emsp;
+        &emsp;
 
-       x: 
-      <input id='x_pos' size=10> 
-      
-       y: 
-      <input id='y_pos' size=10> 
-       z: 
-      <input id='z_pos' size=10> 
-        <button type="button" onClick='posSubmit()'>Submit</button><BR> 
-      </p>
+        <b>Secondary Light Controls </b> 
+        &emsp;
+        position
+        &emsp;
+
+        X: 
+        <input id='x' size=10> 
+        
+         Y: 
+        <input id='y' size=10> 
+         Z: 
+        <input id='z' size=10> 
+          <button type="button" onClick='posSubmit()'>Submit</button><BR> 
+        </p>
     </div>
     <div>
-      <p>Toggle the lighting type by pressing 'X'
+      <p>Toggle the secondary light by pressing 'X'
        &emsp;
        &emsp;
        &emsp;
        &emsp;
        &emsp;
        &emsp;
+       &emsp;
+       &emsp;
+       &emsp;
+       &emsp;
+       &emsp;
+       &emsp;
+       &emsp;
+       &emsp;
+       &emsp;
+
 
 
        ambient r-g-b        &emsp;
@@ -50,11 +69,14 @@
       <input id='a_g' size=10> 
        B: 
       <input id='a_b' size=10> 
-        <button type="button" onClick='posSubmit()'>Submit</button><BR> 
+        <button type="button" onClick='ambSubmit()'>Submit</button><BR> 
       </p>
     </div>
     <div>
-      <p>Toggle the shading type by pressing 'C'.
+      <p>Toggle the lighting type (Phong/Blinn-Phong) by pressing 'C'.
+      &emsp;
+      &emsp;
+      &emsp;
       &emsp;
       &emsp;
       &emsp;
@@ -71,11 +93,11 @@
       <input id='d_g' size=10> 
        B: 
       <input id='d_b' size=10> 
-        <button type="button" onClick='posSubmit()'>Submit</button><BR> 
+        <button type="button" onClick='diffSubmit()'>Submit</button><BR> 
       </p>
     </div>
     <div>
-      <p>
+      <p> Toggle the shading type (Gouroud/Phong) by pressing 'V'.
           &emsp;
           &emsp;
           &emsp;
@@ -84,18 +106,7 @@
           &emsp;
           &emsp;
           &emsp;
-          &emsp;
-          &emsp;
-          &emsp;
-          &emsp;
-          &emsp;
-          &emsp;
-          &emsp;
-          &emsp;
-          &emsp;
-          &emsp;
-          &emsp;
-          &emsp;
+  
           &emsp;
       specular r-g-b       &emsp;
 
@@ -106,7 +117,7 @@
       <input id='s_g' size=10> 
        B: 
       <input id='s_b' size=10> 
-        <button type="button" onClick='posSubmit()'>Submit</button><BR> 
+        <button type="button" onClick='specSubmit()'>Submit</button><BR> 
       </p>
     </div>
  

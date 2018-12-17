@@ -1,5 +1,8 @@
 var floatsPerVertex = 7; // different for each vbo; move to be a member of each vbo
 
+
+lamp0 = new LightsT();  
+lamp1 = new LightsT();
 //=============================================================================
 //=============================================================================
 function VBObox1() {
@@ -35,6 +38,7 @@ function VBObox1() {
   'uniform LampT u_LampSet[2];\n' +		// Array of all light sources.
 
   'uniform bool u_headlightOn;\n' +
+  'uniform bool u_lightOn;\n' +
   'uniform bool u_phongShading;\n' +
   'uniform bool u_phongLighting;\n' +
 
@@ -56,7 +60,7 @@ function VBObox1() {
   '     vec3 temp_color = vec3(0,0,0);\n' +
   '     for(int j=0; j<2; j++){' +
   //Calculate the light direction and make it 1.0 in length
-  '       if(j==1 && u_headlightOn || j==0){\n' +
+  '       if(j==1 && u_headlightOn || j==0 && u_lightOn){\n' +
   '         vec3 lightDirection = normalize(u_LampSet[j].pos - vec3(v_Position));\n' +
   //The dot product of the light direction and the normal
   '         float nDotL = max(dot(lightDirection, v_Normal), 0.0);\n' +
@@ -102,6 +106,7 @@ function VBObox1() {
   'uniform bool u_phongShading;\n' + 
   'uniform bool u_phongLighting;\n' + 
   'uniform bool u_headlightOn;\n' +
+  'uniform bool u_lightOn;\n' +
   
  	//-------------VARYING:Vertex Shader values sent per-pixel to Fragment shader: 
   'varying vec3 v_Normal;\n' +				// Find 3D surface normal at each pix
@@ -118,10 +123,10 @@ function VBObox1() {
       'vec3 eyeDirection = normalize(u_eyePosWorld - v_Position.xyz); \n' +
       'gl_FragColor = vec4(0,0,0,0);\n' +
       'for (int j=0; j<2; j++){\n' +
-      'if(j==1 && u_headlightOn || j==0){\n' +
+      'if(j==1 && u_headlightOn || j==0 && u_lightOn){\n' +
         'vec3 lightDirection = normalize(u_LampSet[j].pos - v_Position.xyz);\n' +
         // 'float nDotL = 0.0;\n' +
-        'if (u_phongLighting){\n' +
+        'if (!u_phongLighting){\n' +
           'vec3 H = vec3(0,0,0);\n' +
           'if (j == 0){\n' +
             'H = normalize(lightDirection + eyeDirection);\n' +
@@ -164,8 +169,6 @@ function VBObox1() {
   this.mvpMatrix = new Matrix4();
   this.normalMatrix = new Matrix4();
 
-  this.lamp0 = new LightsT();  
-  this.lamp1 = new LightsT();
 
 	// ... for our first material:
   var matlSel= MATL_RED_PLASTIC;				// see keypress(): 'm' key changes matlSel
@@ -310,21 +313,21 @@ VBObox1.prototype.init = function(myGL) {
     return;
   }
 
-  this.lamp0.u_pos  = myGL.getUniformLocation(myGL.program, 'u_LampSet[0].pos');	
-  this.lamp0.u_ambi = myGL.getUniformLocation(myGL.program, 'u_LampSet[0].ambi');
-  this.lamp0.u_diff = myGL.getUniformLocation(myGL.program, 'u_LampSet[0].diff');
-  this.lamp0.u_spec = myGL.getUniformLocation(myGL.program, 'u_LampSet[0].spec');
-  if( !this.lamp0.u_pos || !this.lamp0.u_ambi	|| !this.lamp0.u_diff || !this.lamp0.u_spec	) {
-    console.log('Failed to get GPUs this.lamp0 storage locations');
+  lamp0.u_pos  = myGL.getUniformLocation(myGL.program, 'u_LampSet[0].pos');	
+  lamp0.u_ambi = myGL.getUniformLocation(myGL.program, 'u_LampSet[0].ambi');
+  lamp0.u_diff = myGL.getUniformLocation(myGL.program, 'u_LampSet[0].diff');
+  lamp0.u_spec = myGL.getUniformLocation(myGL.program, 'u_LampSet[0].spec');
+  if( !lamp0.u_pos || !lamp0.u_ambi	|| !lamp0.u_diff || !lamp0.u_spec	) {
+    console.log('Failed to get GPUs lamp0 storage locations');
     return;
 	}
 	
-  this.lamp1.u_pos  = myGL.getUniformLocation(myGL.program, 'u_LampSet[1].pos');	
-  this.lamp1.u_ambi = myGL.getUniformLocation(myGL.program, 'u_LampSet[1].ambi');
-  this.lamp1.u_diff = myGL.getUniformLocation(myGL.program, 'u_LampSet[1].diff');
-  this.lamp1.u_spec = myGL.getUniformLocation(myGL.program, 'u_LampSet[1].spec');
-  if( !this.lamp1.u_pos || !this.lamp1.u_ambi	|| !this.lamp1.u_diff || !this.lamp1.u_spec	) {
-    console.log('Failed to get GPUs this.lamp1 storage locations');
+  lamp1.u_pos  = myGL.getUniformLocation(myGL.program, 'u_LampSet[1].pos');	
+  lamp1.u_ambi = myGL.getUniformLocation(myGL.program, 'u_LampSet[1].ambi');
+  lamp1.u_diff = myGL.getUniformLocation(myGL.program, 'u_LampSet[1].diff');
+  lamp1.u_spec = myGL.getUniformLocation(myGL.program, 'u_LampSet[1].spec');
+  if( !lamp1.u_pos || !lamp1.u_ambi	|| !lamp1.u_diff || !lamp1.u_spec	) {
+    console.log('Failed to get GPUs lamp1 storage locations');
     return;
   }
 
@@ -346,28 +349,28 @@ VBObox1.prototype.init = function(myGL) {
 	// (Note: uniform4fv() expects 4-element float32Array as its 2nd argument)
 	
   // Init World-coord. position & colors of first light source in global vars;
-  this.lamp0.I_pos.elements.set( [2.0, 5.0, 5.0]);
-  this.lamp0.I_ambi.elements.set([0.4, 0.4, 0.4]);
-  this.lamp0.I_diff.elements.set([0.7, 0.7, 0.7]);
-	this.lamp0.I_spec.elements.set([1.0, 1.0, 1.0]);
+  lamp0.I_pos.elements.set( [2.0, 5.0, 5.0]);
+  lamp0.I_ambi.elements.set([0.4, 0.4, 0.4]);
+  lamp0.I_diff.elements.set([0.7, 0.7, 0.7]);
+	lamp0.I_spec.elements.set([1.0, 1.0, 1.0]);
 	
-	this.lamp1.I_pos.elements.set(g_Eye);
-  this.lamp1.I_ambi.elements.set([0.4, 0.4, 0.4]);
-  this.lamp1.I_diff.elements.set([0.5, 0.5, 0.5]);
-  this.lamp1.I_spec.elements.set([1.0, 1.0, 1.0]);
+	lamp1.I_pos.elements.set(g_Eye);
+  lamp1.I_ambi.elements.set([0.4, 0.4, 0.4]);
+  lamp1.I_diff.elements.set([0.5, 0.5, 0.5]);
+  lamp1.I_spec.elements.set([1.0, 1.0, 1.0]);
 
     //---------------For the light source(s):
-    myGL.uniform3fv(this.lamp0.u_pos,  this.lamp0.I_pos.elements.slice(0,3));
+    myGL.uniform3fv(lamp0.u_pos,  lamp0.I_pos.elements.slice(0,3));
     //		 ('slice(0,3) member func returns elements 0,1,2 (x,y,z) ) 
-    myGL.uniform3fv(this.lamp0.u_ambi, this.lamp0.I_ambi.elements);		// ambient
-    myGL.uniform3fv(this.lamp0.u_diff, this.lamp0.I_diff.elements);		// diffuse
-    myGL.uniform3fv(this.lamp0.u_spec, this.lamp0.I_spec.elements);		// Specular
+    myGL.uniform3fv(lamp0.u_ambi, lamp0.I_ambi.elements);		// ambient
+    myGL.uniform3fv(lamp0.u_diff, lamp0.I_diff.elements);		// diffuse
+    myGL.uniform3fv(lamp0.u_spec, lamp0.I_spec.elements);		// Specular
     
-    console.log(this.lamp1.I_pos.elements);
-    myGL.uniform3fv(this.lamp1.u_pos,  this.lamp1.I_pos.elements.slice(0,3));
-    myGL.uniform3fv(this.lamp1.u_ambi, this.lamp1.I_ambi.elements);		// ambient
-    myGL.uniform3fv(this.lamp1.u_diff, this.lamp1.I_diff.elements);		// diffuse
-    myGL.uniform3fv(this.lamp1.u_spec, this.lamp1.I_spec.elements);		// Specular
+    console.log(lamp1.I_pos.elements);
+    myGL.uniform3fv(lamp1.u_pos,  lamp1.I_pos.elements.slice(0,3));
+    myGL.uniform3fv(lamp1.u_ambi, lamp1.I_ambi.elements);		// ambient
+    myGL.uniform3fv(lamp1.u_diff, lamp1.I_diff.elements);		// diffuse
+    myGL.uniform3fv(lamp1.u_spec, lamp1.I_spec.elements);		// Specular
     //	console.log('this.lamp0.u_pos',this.lamp0.u_pos,'\n' );
     //	console.log('this.lamp0.I_diff.elements', this.lamp0.I_diff.elements, '\n');
   
@@ -385,7 +388,9 @@ VBObox1.prototype.init = function(myGL) {
   this.u_phongShading = myGL.getUniformLocation(myGL.program, 'u_phongShading');
   this.u_phongLighting = myGL.getUniformLocation(myGL.program, 'u_phongLighting');
   this.u_headlightOn = myGL.getUniformLocation(myGL.program, 'u_headlightOn');
-  if(!this.u_phongLighting || !this.u_phongLighting || !this.u_headlightOn){
+  this.u_lightOn = myGL.getUniformLocation(myGL.program, 'u_lightOn');
+
+  if(!this.u_phongLighting || !this.u_phongLighting || !this.u_headlightOn || !this.u_lightOn){
     console.log('Faled to get boolean shader type storage locations');
     return;
   }
@@ -394,6 +399,8 @@ VBObox1.prototype.init = function(myGL) {
   myGL.uniform1i(this.u_phongLighting, phongLighting);
   myGL.uniform1i(this.u_phongShading, phongShading);
   myGL.uniform1i(this.u_headlightOn, headlightOn);
+  myGL.uniform1i(this.u_lightOn, lightOn);
+
 
   // Pass the model matrix to u_ModelMatrix
   myGL.uniformMatrix4fv(this.u_ModelMatrix, false, this.modelMatrix.elements);
@@ -438,12 +445,20 @@ VBObox1.prototype.adjust = function(myGL) {
                         false, 
                         this.mvpMatrix.elements);
 
-  this.lamp1.I_pos.elements.set(g_Eye);
+  lamp1.I_pos.elements.set(g_Eye);
+  myGL.uniform3fv(lamp1.u_pos,  lamp1.I_pos.elements.slice(0,3));
+
+
+  myGL.uniform3fv(lamp0.u_pos,  lamp0.I_pos.elements.slice(0,3));
+  myGL.uniform3fv(lamp0.u_ambi, lamp0.I_ambi.elements);		// ambient
+  myGL.uniform3fv(lamp0.u_diff, lamp0.I_diff.elements);		// diffuse
+  myGL.uniform3fv(lamp0.u_spec, lamp0.I_spec.elements);		// Specular
 
     // Pass booleans to shaders
     myGL.uniform1i(this.u_phongLighting, phongLighting);
     myGL.uniform1i(this.u_phongShading, phongShading);
     myGL.uniform1i(this.u_headlightOn, headlightOn);
+    myGL.uniform1i(this.u_lightOn, lightOn);
 
     myGL.uniform3fv(this.uLoc_eyePosWorld, g_Eye);// use it to set our uniform
 
@@ -470,6 +485,7 @@ VBObox1.prototype.draw = function(myGL) {
   // this.modelMatrix.scale(0.5,0.5,0.5);
 
   this.modelMatrix.rotate(sphereAngle, 0.0, 0.0);
+  console.log(sphereAngle);
 
 
   // Calculate the model matrix
@@ -564,7 +580,40 @@ VBObox1.prototype.drawSpheres = function(myGL, x, y, z) {
       this.mySiz,	// start at this vertex number, and
       myGL.UNSIGNED_SHORT,
       0);		// draw this many vertices
+
   }
 
   this.modelMatrix = popMatrix();
+}
+
+function posSubmit(){
+  var x = document.getElementById('x').value;	
+  var y = document.getElementById('y').value;	
+  var z = document.getElementById('z').value;	
+
+  lamp0.I_pos.elements.set([x,y,z]);
+}
+
+function ambSubmit() {
+  var r = document.getElementById('a_r').value;	
+  var g = document.getElementById('a_g').value;	
+  var b = document.getElementById('a_b').value;	
+
+  lamp0.I_ambi.elements.set([r, g, b]);
+}
+
+function diffSubmit() {
+  var r = document.getElementById('d_r').value;	
+  var g = document.getElementById('d_g').value;	
+  var b = document.getElementById('d_b').value;	
+  
+  lamp0.I_diff.elements.set([r, g, b]);
+}
+
+function specSubmit() {
+  var r = document.getElementById('s_r').value;	
+  var g = document.getElementById('s_g').value;	
+  var b = document.getElementById('s_b').value;
+
+  lamp0.I_spec.elements.set([r, g, b]);
 }
